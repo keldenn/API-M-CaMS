@@ -6,14 +6,16 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   host: configService.get<string>('DB_HOST', 'localhost'),
   port: configService.get<number>('DB_PORT', 3306),
   username: configService.get<string>('DB_USERNAME', 'root'),
-  password: configService.get<string>('DB_PASSWORD', ''),
-  database: configService.get<string>('DB_DATABASE', 'cams_db'),
+  password: configService.get<string>('DB_PASSWORD', 'password'),
+  database: configService.get<string>('DB_DATABASE', 'cms2_local'),
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: configService.get<boolean>('DB_SYNC', false), // Set to false in production
   logging: configService.get<boolean>('DB_LOGGING', false),
   timezone: '+06:00', // Fixed timezone format
   extra: {
-    authPlugin: 'mysql_native_password',
+    // Handle MySQL authentication issues
+    insecureAuth: true,
+    // Remove problematic authPlugin
   },
 });
 

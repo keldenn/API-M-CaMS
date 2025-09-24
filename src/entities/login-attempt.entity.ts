@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('login_attempts')
 export class LoginAttempt {
@@ -8,7 +8,7 @@ export class LoginAttempt {
   @Column()
   username: string;
 
-  @CreateDateColumn()
+  @Column({ type: 'datetime' })
   date: Date;
 }
 

@@ -15,11 +15,10 @@ import { getDatabaseConfig } from './config/database.config';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // Comment out database connection for now to test the server
-    // TypeOrmModule.forRootAsync({
-    //   useFactory: getDatabaseConfig,
-    //   inject: [ConfigService],
-    // }),
+    TypeOrmModule.forRootAsync({
+      useFactory: getDatabaseConfig,
+      inject: [ConfigService],
+    }),
     ThrottlerModule.forRootAsync({
       useFactory: (configService: ConfigService) => [
         {

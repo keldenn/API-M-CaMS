@@ -17,10 +17,10 @@ export class LinkUser {
   @Column()
   broker_user_name: string;
 
-  @CreateDateColumn()
+  @Column({ type: 'datetime', nullable: true })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @Column({ type: 'datetime', nullable: true })
   updated_at: Date;
 }
 

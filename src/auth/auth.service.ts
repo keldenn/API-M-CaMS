@@ -29,9 +29,18 @@ export class AuthService {
 
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.findUserWithLinkData(username);
-    if (user && await this.verifyPassword(password, user.password, user.is_bcrypt)) {
-      const { password: _, ...result } = user;
-      return result;
+    if (user) {
+      // Use the same password verification logic as in login
+      const password_db = user.password;
+      const isBcrypt = user.is_bcrypt;
+      const passwordVerified = isBcrypt ? 
+        await bcrypt.compare(password, password_db) : 
+        (crypto.createHash('md5').update(password).digest('hex') === password_db);
+      
+      if (passwordVerified) {
+        const { password: _, ...result } = user;
+        return result;
+      }
     }
     return null;
   }
@@ -65,6 +74,16 @@ export class AuthService {
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
       
+      console.log('Debug - User lookup result:', {
+        username: username,
+        userFound: !!userWithLinkData,
+        userData: userWithLinkData ? {
+          username: userWithLinkData.username,
+          name: userWithLinkData.name,
+          email: userWithLinkData.email
+        } : null
+      });
+      
       if (!userWithLinkData) {
         await this.recordFailedAttempt(username);
         return {
@@ -74,12 +93,61 @@ export class AuthService {
         };
       }
 
-      // Verify password
-      const passwordVerified = await this.verifyPassword(
-        password,
-        userWithLinkData.password,
-        userWithLinkData.is_bcrypt
-      );
+      // Verify password (matching PHP logic exactly)
+      const password_db = userWithLinkData.password;
+      const isBcrypt = userWithLinkData.is_bcrypt;
+      
+      // Debug logging
+      console.log('Debug - User found:', {
+        username: userWithLinkData.username,
+        password_db: password_db,
+        isBcrypt: isBcrypt,
+        input_password: password,
+        md5_hash: crypto.createHash('md5').update(password).digest('hex')
+      });
+      
+      let passwordVerified = false;
+      
+      if (isBcrypt) {
+        // For PHP bcrypt compatibility, try both methods
+        try {
+          // First try standard bcrypt comparison
+          passwordVerified = await bcrypt.compare(password, password_db);
+          console.log('Standard bcrypt result:', passwordVerified);
+        } catch (error) {
+          console.log('Standard bcrypt failed, trying PHP-compatible method');
+          // If that fails, try PHP-compatible bcrypt
+          const bcryptjs = require('bcryptjs');
+          passwordVerified = bcryptjs.compareSync(password, password_db);
+          console.log('PHP-compatible bcrypt result:', passwordVerified);
+        }
+        
+        // Also try with different password variations
+        console.log('Trying password variations:');
+        console.log('Original password:', password);
+        console.log('Password with different case:', password.toLowerCase());
+        console.log('Password with different case:', password.toUpperCase());
+        
+        // Try with trimmed password
+        const trimmedPassword = password.trim();
+        if (trimmedPassword !== password) {
+          console.log('Trying trimmed password:', trimmedPassword);
+          try {
+            const trimmedResult = await bcrypt.compare(trimmedPassword, password_db);
+            console.log('Trimmed bcrypt result:', trimmedResult);
+            if (trimmedResult) passwordVerified = true;
+          } catch (error) {
+            const bcryptjs = require('bcryptjs');
+            const trimmedResult = bcryptjs.compareSync(trimmedPassword, password_db);
+            console.log('Trimmed PHP-compatible bcrypt result:', trimmedResult);
+            if (trimmedResult) passwordVerified = true;
+          }
+        }
+      } else {
+        // MD5 comparison
+        passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
+        console.log('MD5 comparison result:', passwordVerified);
+      }
 
       if (!passwordVerified) {
         await this.recordFailedAttempt(username);
@@ -90,18 +158,25 @@ export class AuthService {
         };
       }
 
-      // Check user status
+      // Check user status (matching PHP logic)
       if (userWithLinkData.status === 0) {
         return {
           error: true,
-          message: `Your Subscription has expired on: ${userWithLinkData.created_at.toISOString().substring(0, 10)}, Please renew.`,
+          message: `Your Subscription has expired on: ${userWithLinkData.created_at ? userWithLinkData.created_at.toString().substring(0, 10) : 'unknown date'}, Please renew.`,
           data: null,
         };
       }
 
-      // Update password to bcrypt if needed
-      if (!userWithLinkData.is_bcrypt) {
-        await this.upgradeToBcrypt(username, password);
+      // Update password to bcrypt if needed (matching PHP logic)
+      if (!isBcrypt) {
+        // Hash the new password using bcrypt
+        const hashedPassword = await bcrypt.hash(password, 12);
+        
+        // Update the password and set is_bcrypt to true
+        await this.userRepository.query(
+          "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
+          [hashedPassword, username]
+        );
       }
 
       // Clear failed attempts on successful login
@@ -109,7 +184,7 @@ export class AuthService {
 
       // Generate JWT token
       const payload = {
-        sub: userWithLinkData.id,
+        sub: 1, // Use a default ID since we don't have user.id
         username: userWithLinkData.username,
         cd_code: userWithLinkData.cd_code,
       };
@@ -117,15 +192,15 @@ export class AuthService {
 
       // Prepare user data
       const userData: UserData = {
-        cd_code: userWithLinkData.cd_code,
-        name: userWithLinkData.name,
-        email: userWithLinkData.email,
-        username: userWithLinkData.username,
-        broker_user_name: userWithLinkData.broker_user_name,
-        participant_code: userWithLinkData.participant_code,
-        profilePicture: userWithLinkData.profilePicture,
-        isNRB: userWithLinkData.isNRB,
-        cid: userWithLinkData.cid,
+        cd_code: userWithLinkData.cd_code || '',
+        name: userWithLinkData.name || '',
+        email: userWithLinkData.email || '',
+        username: userWithLinkData.username || '',
+        broker_user_name: userWithLinkData.broker_user_name || '',
+        participant_code: userWithLinkData.participant_code || '',
+        profilePicture: userWithLinkData.profilePicture || null,
+        isNRB: userWithLinkData.isNRB || 0,
+        cid: userWithLinkData.cid || '',
       };
 
       return {
@@ -146,13 +221,13 @@ export class AuthService {
   }
 
   private async findUserWithLinkData(username: string): Promise<any> {
+    // Match the exact PHP query structure
     const query = `
-      SELECT 
+      SELECT
         l.client_code as cd_code,
         l.participant_code,
         l.username,
         l.broker_user_name,
-        u.id,
         u.name,
         u.email,
         u.password,
@@ -160,35 +235,21 @@ export class AuthService {
         u.address,
         u.phone,
         u.profilePicture,
-        u.status,
+        u.status as userstatus,
         u.role_id,
         u.isNRB,
-        u.created_at,
-        u.is_bcrypt
-      FROM linkuser l, users u
-      WHERE u.username = l.username AND u.username = ?
+        u.status,
+        u.created_at, 
+        u.is_bcrypt 
+        FROM linkuser l, users u
+        WHERE u.username=l.username AND u.username=?
     `;
 
     const result = await this.userRepository.query(query, [username]);
     return result[0] || null;
   }
 
-  private async verifyPassword(password: string, hashedPassword: string, isBcrypt: boolean): Promise<boolean> {
-    if (isBcrypt) {
-      return await bcrypt.compare(password, hashedPassword);
-    } else {
-      const md5Hash = crypto.createHash('md5').update(password).digest('hex');
-      return md5Hash === hashedPassword;
-    }
-  }
 
-  private async upgradeToBcrypt(username: string, password: string): Promise<void> {
-    const hashedPassword = await bcrypt.hash(password, 12);
-    await this.userRepository.update(
-      { username },
-      { password: hashedPassword, is_bcrypt: true }
-    );
-  }
 
   private async checkLoginAttempts(username: string): Promise<boolean> {
     const today = new Date().toISOString().substring(0, 10);

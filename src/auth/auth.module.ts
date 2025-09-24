@@ -15,13 +15,12 @@ import { MobileApiLog } from '../entities/mobile-api-log.entity';
 
 @Module({
   imports: [
-    // Comment out database entities for now
-    // TypeOrmModule.forFeature([User, LinkUser, LoginAttempt, MobileApiLog]),
+    TypeOrmModule.forFeature([User, LinkUser, LoginAttempt, MobileApiLog]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.get<string>('JWT_SECRET') || 'default-secret-key-change-this',
         signOptions: {
           expiresIn: configService.get<string>('JWT_EXPIRES_IN', '24h'),
         },
@@ -29,12 +28,7 @@ import { MobileApiLog } from '../entities/mobile-api-log.entity';
       inject: [ConfigService],
     }),
   ],
-  providers: [
-    // Use mock service for now (no database required)
-    { provide: AuthService, useClass: AuthServiceMock },
-    JwtStrategy, 
-    LocalStrategy
-  ],
+  providers: [AuthService, JwtStrategy, LocalStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })

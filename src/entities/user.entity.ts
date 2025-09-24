@@ -41,10 +41,10 @@ export class User {
   @Column({ default: 0 })
   isNRB: number;
 
-  @CreateDateColumn()
+  @Column({ type: 'datetime', nullable: true })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @Column({ type: 'datetime', nullable: true })
   updated_at: Date;
 }
 

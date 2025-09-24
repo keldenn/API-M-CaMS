@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('mobile_api_log')
 export class MobileApiLog {
@@ -13,8 +13,5 @@ export class MobileApiLog {
 
   @Column()
   user: string;
-
-  @CreateDateColumn()
-  created_at: Date;
 }
 

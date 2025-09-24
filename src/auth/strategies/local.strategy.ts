@@ -10,16 +10,11 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(username: string, password: string): Promise<any> {
-    // Mock validation for testing
-    if (username === 'test_user' && password === 'password123') {
-      return {
-        id: 1,
-        username: 'test_user',
-        name: 'Test User',
-        cd_code: 'TEST001',
-      };
+    const user = await this.authService.validateUser(username, password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
     }
-    throw new UnauthorizedException('Invalid credentials');
+    return user;
   }
 }
 
