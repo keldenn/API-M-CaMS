@@ -19,12 +19,21 @@ import { MobileApiLog } from '../entities/mobile-api-log.entity';
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'default-secret-key-change-this',
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '24h'),
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const jwtSecret = configService.get<string>('JWT_SECRET');
+        const jwtExpiresIn = configService.get<string>('JWT_EXPIRES_IN');
+        
+        if (!jwtSecret) {
+          throw new Error('JWT_SECRET environment variable is required');
+        }
+        
+        return {
+          secret: jwtSecret,
+          signOptions: {
+            expiresIn: jwtExpiresIn || '24h',
+          },
+        };
+      },
       inject: [ConfigService],
     }),
   ],

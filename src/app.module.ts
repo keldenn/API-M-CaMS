@@ -20,18 +20,23 @@ import { getDatabaseConfig } from './config/database.config';
       inject: [ConfigService],
     }),
     ThrottlerModule.forRootAsync({
-      useFactory: (configService: ConfigService) => [
-        {
-          name: 'short',
-          ttl: configService.get('THROTTLE_TTL', 60) * 1000,
-          limit: configService.get('THROTTLE_LIMIT', 10),
-        },
-        {
-          name: 'long',
-          ttl: configService.get('THROTTLE_TTL', 60) * 1000 * 10,
-          limit: configService.get('THROTTLE_LIMIT', 100),
-        },
-      ],
+      useFactory: (configService: ConfigService) => {
+        const throttleTtl = configService.get<number>('THROTTLE_TTL') || 60;
+        const throttleLimit = configService.get<number>('THROTTLE_LIMIT') || 10;
+        
+        return [
+          {
+            name: 'short',
+            ttl: throttleTtl * 1000,
+            limit: throttleLimit,
+          },
+          {
+            name: 'long',
+            ttl: throttleTtl * 1000 * 10,
+            limit: throttleLimit * 10,
+          },
+        ];
+      },
       inject: [ConfigService],
     }),
     AuthModule,

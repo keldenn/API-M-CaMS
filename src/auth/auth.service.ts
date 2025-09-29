@@ -30,12 +30,19 @@ export class AuthService {
   async validateUser(username: string, password: string): Promise<any> {
     const user = await this.findUserWithLinkData(username);
     if (user) {
-      // Use the same password verification logic as in login
+      // Use the same password verification logic as in login (matching PHP exactly)
       const password_db = user.password;
       const isBcrypt = user.is_bcrypt;
-      const passwordVerified = isBcrypt ? 
-        await bcrypt.compare(password, password_db) : 
-        (crypto.createHash('md5').update(password).digest('hex') === password_db);
+      
+      let passwordVerified = false;
+      if (isBcrypt) {
+        // Use bcryptjs for PHP compatibility (same as PHP's password_verify)
+        const bcryptjs = require('bcryptjs');
+        passwordVerified = bcryptjs.compareSync(password, password_db);
+      } else {
+        // MD5 comparison (same as PHP's md5($password) == $password_db)
+        passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
+      }
       
       if (passwordVerified) {
         const { password: _, ...result } = user;
@@ -48,8 +55,12 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<LoginResponseDto> {
     const { username, password, VerificationAPI } = loginDto;
 
-    // Verify API key
-    if (VerificationAPI !== 'RSEB@2020') {
+        // Verify API key
+        const expectedApiKey = this.configService.get<string>('VERIFICATION_API_KEY');
+        if (!expectedApiKey) {
+          throw new Error('VERIFICATION_API_KEY environment variable is required');
+        }
+        if (VerificationAPI !== expectedApiKey) {
       return {
         error: true,
         message: 'Unauthorized.',
@@ -65,7 +76,7 @@ export class AuthService {
     if (isLocked) {
       return {
         error: true,
-        message: 'Account has been locked due to more than 5 incorrect attempts.',
+        message: `Account has been locked due to more than ${this.configService.get<number>('LOGIN_ATTEMPTS_LIMIT') || 5} incorrect attempts.`,
         data: null,
       };
     }
@@ -74,15 +85,6 @@ export class AuthService {
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
       
-      console.log('Debug - User lookup result:', {
-        username: username,
-        userFound: !!userWithLinkData,
-        userData: userWithLinkData ? {
-          username: userWithLinkData.username,
-          name: userWithLinkData.name,
-          email: userWithLinkData.email
-        } : null
-      });
       
       if (!userWithLinkData) {
         await this.recordFailedAttempt(username);
@@ -97,56 +99,17 @@ export class AuthService {
       const password_db = userWithLinkData.password;
       const isBcrypt = userWithLinkData.is_bcrypt;
       
-      // Debug logging
-      console.log('Debug - User found:', {
-        username: userWithLinkData.username,
-        password_db: password_db,
-        isBcrypt: isBcrypt,
-        input_password: password,
-        md5_hash: crypto.createHash('md5').update(password).digest('hex')
-      });
       
+      // Match PHP logic exactly: $passwordVerified = $isBcrypt ? password_verify($password, $password_db) : (md5($password) == $password_db);
       let passwordVerified = false;
       
       if (isBcrypt) {
-        // For PHP bcrypt compatibility, try both methods
-        try {
-          // First try standard bcrypt comparison
-          passwordVerified = await bcrypt.compare(password, password_db);
-          console.log('Standard bcrypt result:', passwordVerified);
-        } catch (error) {
-          console.log('Standard bcrypt failed, trying PHP-compatible method');
-          // If that fails, try PHP-compatible bcrypt
-          const bcryptjs = require('bcryptjs');
-          passwordVerified = bcryptjs.compareSync(password, password_db);
-          console.log('PHP-compatible bcrypt result:', passwordVerified);
-        }
-        
-        // Also try with different password variations
-        console.log('Trying password variations:');
-        console.log('Original password:', password);
-        console.log('Password with different case:', password.toLowerCase());
-        console.log('Password with different case:', password.toUpperCase());
-        
-        // Try with trimmed password
-        const trimmedPassword = password.trim();
-        if (trimmedPassword !== password) {
-          console.log('Trying trimmed password:', trimmedPassword);
-          try {
-            const trimmedResult = await bcrypt.compare(trimmedPassword, password_db);
-            console.log('Trimmed bcrypt result:', trimmedResult);
-            if (trimmedResult) passwordVerified = true;
-          } catch (error) {
-            const bcryptjs = require('bcryptjs');
-            const trimmedResult = bcryptjs.compareSync(trimmedPassword, password_db);
-            console.log('Trimmed PHP-compatible bcrypt result:', trimmedResult);
-            if (trimmedResult) passwordVerified = true;
-          }
-        }
+        // Use bcryptjs for PHP compatibility (same as PHP's password_verify)
+        const bcryptjs = require('bcryptjs');
+        passwordVerified = bcryptjs.compareSync(password, password_db);
       } else {
-        // MD5 comparison
+        // MD5 comparison (same as PHP's md5($password) == $password_db)
         passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
-        console.log('MD5 comparison result:', passwordVerified);
       }
 
       if (!passwordVerified) {
@@ -259,7 +222,8 @@ export class AuthService {
       .andWhere('DATE(attempt.date) = :today', { today })
       .getCount();
 
-    return attempts >= 5;
+    const limit = this.configService.get<number>('LOGIN_ATTEMPTS_LIMIT') || 5;
+    return attempts >= limit;
   }
 
   private async recordFailedAttempt(username: string): Promise<void> {
