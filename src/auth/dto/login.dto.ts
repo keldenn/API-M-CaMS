@@ -19,13 +19,5 @@ export class LoginDto {
   @IsNotEmpty()
   @MinLength(6)
   password: string;
-
-  @ApiProperty({
-    description: 'API Verification key',
-    example: 'RSEB@2020',
-  })
-  @IsString()
-  @IsNotEmpty()
-  VerificationAPI: string;
 }
 

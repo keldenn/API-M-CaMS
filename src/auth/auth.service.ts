@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -7,10 +7,11 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { User } from '../entities/user.entity';
 import { LinkUser } from '../entities/linkuser.entity';
-import { LoginAttempt } from '../entities/login-attempt.entity';
-import { MobileApiLog } from '../entities/mobile-api-log.entity';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto, UserData } from './dto/login-response.dto';
+import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -19,10 +20,6 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(LinkUser)
     private linkUserRepository: Repository<LinkUser>,
-    @InjectRepository(LoginAttempt)
-    private loginAttemptRepository: Repository<LoginAttempt>,
-    @InjectRepository(MobileApiLog)
-    private mobileApiLogRepository: Repository<MobileApiLog>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -53,41 +50,13 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto): Promise<LoginResponseDto> {
-    const { username, password, VerificationAPI } = loginDto;
-
-        // Verify API key
-        const expectedApiKey = this.configService.get<string>('VERIFICATION_API_KEY');
-        if (!expectedApiKey) {
-          throw new Error('VERIFICATION_API_KEY environment variable is required');
-        }
-        if (VerificationAPI !== expectedApiKey) {
-      return {
-        error: true,
-        message: 'Unauthorized.',
-        data: null,
-      };
-    }
-
-    // Log API request
-    await this.logApiRequest(loginDto, username);
-
-    // Check login attempts
-    const isLocked = await this.checkLoginAttempts(username);
-    if (isLocked) {
-      return {
-        error: true,
-        message: `Account has been locked due to more than ${this.configService.get<number>('LOGIN_ATTEMPTS_LIMIT') || 5} incorrect attempts.`,
-        data: null,
-      };
-    }
+    const { username, password } = loginDto;
 
     try {
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
       
-      
       if (!userWithLinkData) {
-        await this.recordFailedAttempt(username);
         return {
           error: true,
           message: 'Invalid Username or Password',
@@ -95,33 +64,30 @@ export class AuthService {
         };
       }
 
-      // Verify password (matching PHP logic exactly)
+      // Verify password
       const password_db = userWithLinkData.password;
       const isBcrypt = userWithLinkData.is_bcrypt;
       
-      
-      // Match PHP logic exactly: $passwordVerified = $isBcrypt ? password_verify($password, $password_db) : (md5($password) == $password_db);
       let passwordVerified = false;
       
       if (isBcrypt) {
-        // Use bcryptjs for PHP compatibility (same as PHP's password_verify)
+        // Use bcryptjs for PHP compatibility
         const bcryptjs = require('bcryptjs');
         passwordVerified = bcryptjs.compareSync(password, password_db);
       } else {
-        // MD5 comparison (same as PHP's md5($password) == $password_db)
+        // MD5 comparison for legacy passwords
         passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
       }
 
       if (!passwordVerified) {
-        await this.recordFailedAttempt(username);
         return {
           error: true,
-          message: 'Invalid Password',
+          message: 'Invalid Username or Password',
           data: null,
         };
       }
 
-      // Check user status (matching PHP logic)
+      // Check user status
       if (userWithLinkData.status === 0) {
         return {
           error: true,
@@ -130,28 +96,34 @@ export class AuthService {
         };
       }
 
-      // Update password to bcrypt if needed (matching PHP logic)
+      // Update password to bcrypt if needed
       if (!isBcrypt) {
-        // Hash the new password using bcrypt
         const hashedPassword = await bcrypt.hash(password, 12);
-        
-        // Update the password and set is_bcrypt to true
         await this.userRepository.query(
           "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
           [hashedPassword, username]
         );
       }
 
-      // Clear failed attempts on successful login
-      await this.clearFailedAttempts(username);
-
-      // Generate JWT token
-      const payload = {
-        sub: 1, // Use a default ID since we don't have user.id
+      // Generate JWT access token (expires in 10 minutes)
+      const accessPayload = {
+        sub: 1,
         username: userWithLinkData.username,
         cd_code: userWithLinkData.cd_code,
+        type: 'access',
       };
-      const access_token = this.jwtService.sign(payload);
+      const access_token = this.jwtService.sign(accessPayload);
+
+      // Generate refresh token (expires in 2 days)
+      const refreshPayload = {
+        sub: 1,
+        username: userWithLinkData.username,
+        cd_code: userWithLinkData.cd_code,
+        type: 'refresh',
+      };
+      const refresh_token = this.jwtService.sign(refreshPayload, {
+        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '2d',
+      });
 
       // Prepare user data
       const userData: UserData = {
@@ -171,6 +143,7 @@ export class AuthService {
         message: 'Login Successful',
         data: userData,
         access_token,
+        refresh_token,
       };
 
     } catch (error) {
@@ -183,8 +156,215 @@ export class AuthService {
     }
   }
 
+  async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+    const { refresh_token } = refreshTokenDto;
+
+    try {
+      // Verify the refresh token
+      let decoded;
+      try {
+        decoded = this.jwtService.verify(refresh_token);
+      } catch (error) {
+        return {
+          error: true,
+          message: 'Invalid or expired refresh token',
+        };
+      }
+
+      // Check if it's a refresh token
+      if (decoded.type !== 'refresh') {
+        return {
+          error: true,
+          message: 'Invalid token type',
+        };
+      }
+
+      // Get user data to ensure user still exists and is active
+      const userWithLinkData = await this.findUserWithLinkData(decoded.username);
+      
+      if (!userWithLinkData) {
+        return {
+          error: true,
+          message: 'User not found',
+        };
+      }
+
+      // Check user status
+      if (userWithLinkData.status === 0) {
+        return {
+          error: true,
+          message: 'User account is inactive',
+        };
+      }
+
+      // Generate new access token
+      const accessPayload = {
+        sub: decoded.sub,
+        username: decoded.username,
+        cd_code: decoded.cd_code,
+        type: 'access',
+      };
+      const access_token = this.jwtService.sign(accessPayload);
+
+      // Generate new refresh token (rotate refresh token for security)
+      const refreshPayload = {
+        sub: decoded.sub,
+        username: decoded.username,
+        cd_code: decoded.cd_code,
+        type: 'refresh',
+      };
+      const new_refresh_token = this.jwtService.sign(refreshPayload, {
+        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '2d',
+      });
+
+      return {
+        error: false,
+        message: 'Token refreshed successfully',
+        access_token,
+        refresh_token: new_refresh_token,
+      };
+
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      return {
+        error: true,
+        message: 'An error occurred during token refresh',
+      };
+    }
+  }
+
+  async changePassword(username: string, changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
+    const { currentPassword, newPassword, confirmPassword } = changePasswordDto;
+
+    try {
+      // Validate password confirmation
+      if (newPassword !== confirmPassword) {
+        return {
+          error: true,
+          message: 'New password and confirm password do not match',
+        };
+      }
+
+      // Check if new password is different from current password
+      if (currentPassword === newPassword) {
+        return {
+          error: true,
+          message: 'New password must be different from current password',
+        };
+      }
+
+      // Find user with link data
+      const userWithLinkData = await this.findUserWithLinkData(username);
+      
+      if (!userWithLinkData) {
+        return {
+          error: true,
+          message: 'User not found',
+        };
+      }
+
+      // Verify current password
+      const password_db = userWithLinkData.password;
+      const isBcrypt = userWithLinkData.is_bcrypt;
+      
+      let currentPasswordVerified = false;
+      
+      if (isBcrypt) {
+        // Use bcryptjs for PHP compatibility
+        const bcryptjs = require('bcryptjs');
+        currentPasswordVerified = bcryptjs.compareSync(currentPassword, password_db);
+      } else {
+        // MD5 comparison for legacy passwords
+        currentPasswordVerified = (crypto.createHash('md5').update(currentPassword).digest('hex') === password_db);
+      }
+
+      if (!currentPasswordVerified) {
+        return {
+          error: true,
+          message: 'Current password is incorrect',
+        };
+      }
+
+      // Check user status
+      if (userWithLinkData.status === 0) {
+        return {
+          error: true,
+          message: 'User account is inactive',
+        };
+      }
+
+      // Hash the new password using bcrypt
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+      
+      // Update the password in database
+      await this.userRepository.query(
+        "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
+        [hashedNewPassword, username]
+      );
+
+      return {
+        error: false,
+        message: 'Password changed successfully',
+      };
+
+    } catch (error) {
+      console.error('Change password error:', error);
+      return {
+        error: true,
+        message: 'An error occurred while changing password',
+      };
+    }
+  }
+
+  async getClientDetails(getClientDetailsDto: GetClientDetailsDto): Promise<ClientDetailsResponseDto> {
+    const { username } = getClientDetailsDto;
+
+    try {
+      // Find user with link data
+      const userWithLinkData = await this.findUserWithLinkData(username);
+      
+      if (!userWithLinkData) {
+        return {
+          error: true,
+          message: 'Username not found',
+          data: null,
+        };
+      }
+
+      // Check user status
+      if (userWithLinkData.status === 0) {
+        return {
+          error: true,
+          message: 'User account is inactive',
+          data: null,
+        };
+      }
+
+      // Return client details (unmasked)
+      const clientDetails = {
+        username: userWithLinkData.username,
+        email: userWithLinkData.email,
+        phone: userWithLinkData.phone,
+      };
+
+      return {
+        error: false,
+        message: 'Client details retrieved successfully',
+        data: clientDetails,
+      };
+
+    } catch (error) {
+      console.error('Get client details error:', error);
+      return {
+        error: true,
+        message: 'An error occurred while retrieving client details',
+        data: null,
+      };
+    }
+  }
+
+
   private async findUserWithLinkData(username: string): Promise<any> {
-    // Match the exact PHP query structure
     const query = `
       SELECT
         l.client_code as cd_code,
@@ -210,48 +390,6 @@ export class AuthService {
 
     const result = await this.userRepository.query(query, [username]);
     return result[0] || null;
-  }
-
-
-
-  private async checkLoginAttempts(username: string): Promise<boolean> {
-    const today = new Date().toISOString().substring(0, 10);
-    const attempts = await this.loginAttemptRepository
-      .createQueryBuilder('attempt')
-      .where('attempt.username = :username', { username })
-      .andWhere('DATE(attempt.date) = :today', { today })
-      .getCount();
-
-    const limit = this.configService.get<number>('LOGIN_ATTEMPTS_LIMIT') || 5;
-    return attempts >= limit;
-  }
-
-  private async recordFailedAttempt(username: string): Promise<void> {
-    const attempt = this.loginAttemptRepository.create({
-      username,
-      date: new Date(),
-    });
-    await this.loginAttemptRepository.save(attempt);
-  }
-
-  private async clearFailedAttempts(username: string): Promise<void> {
-    const today = new Date().toISOString().substring(0, 10);
-    await this.loginAttemptRepository
-      .createQueryBuilder()
-      .delete()
-      .where('username = :username', { username })
-      .andWhere('DATE(date) = :today', { today })
-      .execute();
-  }
-
-  private async logApiRequest(loginDto: LoginDto, username: string): Promise<void> {
-    const serializedPost = JSON.stringify(loginDto);
-    const log = this.mobileApiLogRepository.create({
-      date: new Date(),
-      endpoint: serializedPost,
-      user: username,
-    });
-    await this.mobileApiLogRepository.save(log);
   }
 }
 

@@ -1,41 +1,31 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { AppService } from './app.service';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Application')
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
   @Get()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get application status',
-    description: 'Returns application status - requires authentication',
+    description: 'Returns application status',
   })
   @ApiResponse({
     status: 200,
-    description: 'Application status retrieved successfully',
+    description: 'Application is running',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string' },
         timestamp: { type: 'string' },
-        authenticated: { type: 'boolean' },
+        status: { type: 'string' },
       },
     },
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - JWT token required',
-  })
-  getHello(): object {
+  getStatus(): object {
     return {
-      message: this.appService.getHello(),
+      message: 'API-M-CaMS is running',
       timestamp: new Date().toISOString(),
-      authenticated: true,
+      status: 'active',
     };
   }
 }

@@ -1,24 +1,25 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
 import { Public } from './decorators/public.decorator';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Authentication')
 @Controller('auth')
-@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 attempts per minute
   @ApiOperation({
     summary: 'User login',
-    description: 'Authenticate user with username, password, and verification API key',
+    description: 'Authenticate user with username and password',
   })
   @ApiResponse({
     status: 200,
@@ -29,11 +30,76 @@ export class AuthController {
     status: 400,
     description: 'Bad Request - Invalid input data',
   })
-  @ApiResponse({
-    status: 429,
-    description: 'Too Many Requests - Rate limit exceeded',
-  })
   async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(loginDto);
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Generate new access token using refresh token',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    type: RefreshTokenResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid refresh token',
+  })
+  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+    return this.authService.refreshToken(refreshTokenDto);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change user password',
+    description: 'Change user password using current password verification',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    type: ChangePasswordResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data or validation errors',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - JWT token required',
+  })
+  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
+    return this.authService.changePassword(req.user.username, changePasswordDto);
+  }
+
+  @Public()
+  @Post('forgot/client-details')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get client details for forgot password',
+    description: 'Retrieve email and phone details using username for password reset verification',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Client details retrieved successfully',
+    type: ClientDetailsResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Username not found',
+  })
+  async getClientDetails(@Body() getClientDetailsDto: GetClientDetailsDto): Promise<ClientDetailsResponseDto> {
+    return this.authService.getClientDetails(getClientDetailsDto);
   }
 }

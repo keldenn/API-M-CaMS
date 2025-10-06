@@ -41,5 +41,8 @@ export class LoginResponseDto {
 
   @ApiProperty({ required: false })
   access_token?: string;
+
+  @ApiProperty({ required: false })
+  refresh_token?: string;
 }
 

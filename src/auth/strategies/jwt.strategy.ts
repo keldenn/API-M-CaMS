@@ -7,6 +7,7 @@ export interface JwtPayload {
   sub: number;
   username: string;
   cd_code: string;
+  type: string;
 }
 
 @Injectable()
@@ -25,10 +26,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // Only allow access tokens for authentication
+    if (payload.type !== 'access') {
+      throw new Error('Invalid token type');
+    }
+    
     return {
       userId: payload.sub,
       username: payload.username,
       cd_code: payload.cd_code,
+      type: payload.type,
     };
   }
 }
