@@ -12,6 +12,7 @@ import { LoginResponseDto, UserData } from './dto/login-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
 import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
+import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -351,6 +352,58 @@ export class AuthService {
     }
   }
 
+  async forgotChangePassword(forgotChangePasswordDto: ForgotChangePasswordDto): Promise<ForgotChangePasswordResponseDto> {
+    const { username, newPassword, confirmPassword } = forgotChangePasswordDto;
+
+    try {
+      // Validate password confirmation
+      if (newPassword !== confirmPassword) {
+        return {
+          error: true,
+          message: 'New password and confirm password do not match',
+        };
+      }
+
+      // Find user with link data
+      const userWithLinkData = await this.findUserWithLinkData(username);
+      
+      if (!userWithLinkData) {
+        return {
+          error: true,
+          message: 'User not found',
+        };
+      }
+
+      // Check user status
+      if (userWithLinkData.status === 0) {
+        return {
+          error: true,
+          message: 'User account is inactive',
+        };
+      }
+
+      // Hash the new password using bcrypt
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+      
+      // Update the password in database
+      await this.userRepository.query(
+        "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
+        [hashedNewPassword, username]
+      );
+
+      return {
+        error: false,
+        message: 'Password changed successfully',
+      };
+
+    } catch (error) {
+      console.error('Forgot change password error:', error);
+      return {
+        error: true,
+        message: 'An error occurred while changing password',
+      };
+    }
+  }
 
   private async findUserWithLinkData(username: string): Promise<any> {
     const query = `

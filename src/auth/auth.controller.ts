@@ -6,6 +6,7 @@ import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
 import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
+import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -101,5 +102,25 @@ export class AuthController {
   })
   async getClientDetails(@Body() getClientDetailsDto: GetClientDetailsDto): Promise<ClientDetailsResponseDto> {
     return this.authService.getClientDetails(getClientDetailsDto);
+  }
+
+  @Public()
+  @Post('forgot/change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change password for forgot password flow',
+    description: 'Change user password without authentication (for forgot password flow)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    type: ForgotChangePasswordResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data or validation errors',
+  })
+  async forgotChangePassword(@Body() forgotChangePasswordDto: ForgotChangePasswordDto): Promise<ForgotChangePasswordResponseDto> {
+    return this.authService.forgotChangePassword(forgotChangePasswordDto);
   }
 }

@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { OtpModule } from './otp/otp.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -17,6 +18,7 @@ import { getDatabaseConfig } from './config/database.config';
       inject: [ConfigService],
     }),
     AuthModule,
+    OtpModule,
   ],
   controllers: [AppController],
   providers: [AppService],
