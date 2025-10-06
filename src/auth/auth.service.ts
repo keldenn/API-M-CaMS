@@ -206,22 +206,10 @@ export class AuthService {
       };
       const access_token = this.jwtService.sign(accessPayload);
 
-      // Generate new refresh token (rotate refresh token for security)
-      const refreshPayload = {
-        sub: decoded.sub,
-        username: decoded.username,
-        cd_code: decoded.cd_code,
-        type: 'refresh',
-      };
-      const new_refresh_token = this.jwtService.sign(refreshPayload, {
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '2d',
-      });
-
       return {
         error: false,
         message: 'Token refreshed successfully',
         access_token,
-        refresh_token: new_refresh_token,
       };
 
     } catch (error) {
