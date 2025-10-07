@@ -65,6 +65,21 @@ export class AuthService {
         };
       }
 
+      // Check if user has the required role_id (4)
+      console.log('Debug - User role_id:', userWithLinkData.role_id, 'Type:', typeof userWithLinkData.role_id);
+      console.log('Debug - Role comparison:', userWithLinkData.role_id !== 4);
+      console.log('Debug - Strict comparison:', userWithLinkData.role_id !== '4');
+      
+      // Convert to number for comparison since database might return string
+      const userRoleId = parseInt(userWithLinkData.role_id);
+      if (userRoleId !== 4) {
+        return {
+          error: true,
+          message: `Access denied. Only users with role_id 4 can login. Your role_id: ${userRoleId}`,
+          data: null,
+        };
+      }
+
       // Verify password
       const password_db = userWithLinkData.password;
       const isBcrypt = userWithLinkData.is_bcrypt;
@@ -249,6 +264,18 @@ export class AuthService {
         return {
           error: true,
           message: 'User not found',
+        };
+      }
+
+      // Check if user has the required role_id (4)
+      console.log('Debug - Change Password - User role_id:', userWithLinkData.role_id, 'Type:', typeof userWithLinkData.role_id);
+      
+      // Convert to number for comparison since database might return string
+      const userRoleId = parseInt(userWithLinkData.role_id);
+      if (userRoleId !== 4) {
+        return {
+          error: true,
+          message: `Access denied. Only users with role_id 4 can change passwords. Your role_id: ${userRoleId}`,
         };
       }
 

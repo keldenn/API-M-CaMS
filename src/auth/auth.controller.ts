@@ -20,7 +20,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'User login',
-    description: 'Authenticate user with username and password',
+    description: 'Authenticate user with username and password. Requires role_id = 4.',
   })
   @ApiResponse({
     status: 200,
@@ -30,6 +30,10 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: 'Bad Request - Invalid input data',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Role_id 4 required to login',
   })
   async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(loginDto);
@@ -61,7 +65,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Change user password',
-    description: 'Change user password using current password verification',
+    description: 'Change user password using current password verification. Requires role_id = 4.',
   })
   @ApiResponse({
     status: 200,
@@ -75,6 +79,10 @@ export class AuthController {
   @ApiResponse({
     status: 401,
     description: 'Unauthorized - JWT token required',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Role_id 4 required to change passwords',
   })
   async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
     return this.authService.changePassword(req.user.username, changePasswordDto);
