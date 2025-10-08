@@ -149,6 +149,7 @@ export class AuthService {
         profilePicture: userWithLinkData.profilePicture || null,
         isNRB: userWithLinkData.isNRB || 0,
         cid: userWithLinkData.cid || '',
+        isPin: userWithLinkData.isPin || 0,
       };
 
       return {
@@ -527,6 +528,7 @@ export class AuthService {
         u.status as userstatus,
         u.role_id,
         u.isNRB,
+        u.isPin,
         u.status,
         u.created_at, 
         u.is_bcrypt 

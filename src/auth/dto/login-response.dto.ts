@@ -27,6 +27,9 @@ export class UserData {
 
   @ApiProperty()
   cid: string;
+
+  @ApiProperty()
+  isPin: number;
 }
 
 export class LoginResponseDto {
