@@ -214,39 +214,4 @@ export class NdiController {
     };
   }
 
-  @Post('test/simulate-proof-result/:threadId')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Simulate a proof result for testing (Public)' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Simulated proof result sent' 
-  })
-  async simulateProofResult(@Param('threadId') threadId: string): Promise<{ message: string; threadId: string }> {
-    this.logger.log(`Simulating proof result for thread: ${threadId}`);
-    
-    // Simulate a proof result
-    const simulatedResult: NdiProofResultDto = {
-      threadId,
-      status: 'verified',
-      proofData: {
-        idNumber: '123456789',
-        fullName: 'John Doe',
-        dateOfBirth: '1990-01-01',
-        verificationTimestamp: new Date().toISOString(),
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    // Trigger the callback as if we received it via NATS
-    const callback = (result: NdiProofResultDto) => {
-      this.logger.log(`Simulated proof result received for thread ${threadId}:`, result);
-    };
-
-    callback(simulatedResult);
-    
-    return {
-      message: 'Simulated proof result sent successfully',
-      threadId,
-    };
-  }
 }

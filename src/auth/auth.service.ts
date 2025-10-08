@@ -11,6 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto, UserData } from './dto/login-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import { ChangePinDto, ChangePinResponseDto } from './dto/change-pin.dto';
 import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
 import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
 
@@ -66,10 +67,6 @@ export class AuthService {
       }
 
       // Check if user has the required role_id (4)
-      console.log('Debug - User role_id:', userWithLinkData.role_id, 'Type:', typeof userWithLinkData.role_id);
-      console.log('Debug - Role comparison:', userWithLinkData.role_id !== 4);
-      console.log('Debug - Strict comparison:', userWithLinkData.role_id !== '4');
-      
       // Convert to number for comparison since database might return string
       const userRoleId = parseInt(userWithLinkData.role_id);
       if (userRoleId !== 4) {
@@ -268,8 +265,6 @@ export class AuthService {
       }
 
       // Check if user has the required role_id (4)
-      console.log('Debug - Change Password - User role_id:', userWithLinkData.role_id, 'Type:', typeof userWithLinkData.role_id);
-      
       // Convert to number for comparison since database might return string
       const userRoleId = parseInt(userWithLinkData.role_id);
       if (userRoleId !== 4) {
@@ -312,9 +307,9 @@ export class AuthService {
       // Hash the new password using bcrypt
       const hashedNewPassword = await bcrypt.hash(newPassword, 12);
       
-      // Update the password in database
+      // Update the password in database and set isPin to 1
       await this.userRepository.query(
-        "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
+        "UPDATE users SET password = ?, is_bcrypt = 1, isPin = 1 WHERE username = ?",
         [hashedNewPassword, username]
       );
 
@@ -328,6 +323,89 @@ export class AuthService {
       return {
         error: true,
         message: 'An error occurred while changing password',
+      };
+    }
+  }
+
+  async changePin(username: string, changePinDto: ChangePinDto): Promise<ChangePinResponseDto> {
+    const { currentPin, newPin, confirmPin } = changePinDto;
+
+    try {
+      // Validate PIN confirmation
+      if (newPin !== confirmPin) {
+        return {
+          error: true,
+          message: 'New PIN and confirm PIN do not match',
+        };
+      }
+
+      // Check if new PIN is different from current PIN
+      if (currentPin === newPin) {
+        return {
+          error: true,
+          message: 'New PIN must be different from current PIN',
+        };
+      }
+
+      // Find user with link data
+      const userWithLinkData = await this.findUserWithLinkData(username);
+      
+      if (!userWithLinkData) {
+        return {
+          error: true,
+          message: 'User not found',
+        };
+      }
+
+      // Check if user has the required role_id (4)
+      // Convert to number for comparison since database might return string
+      const userRoleId = parseInt(userWithLinkData.role_id);
+      if (userRoleId !== 4) {
+        return {
+          error: true,
+          message: `Access denied. Only users with role_id 4 can change PINs. Your role_id: ${userRoleId}`,
+        };
+      }
+
+      // Verify current PIN using password field (always bcrypt hashed)
+      const password_db = userWithLinkData.password;
+      const bcryptjs = require('bcryptjs');
+      const currentPinVerified = bcryptjs.compareSync(currentPin, password_db);
+
+      if (!currentPinVerified) {
+        return {
+          error: true,
+          message: 'Current PIN is incorrect',
+        };
+      }
+
+      // Check user status
+      if (userWithLinkData.status === 0) {
+        return {
+          error: true,
+          message: 'User account is inactive',
+        };
+      }
+
+      // Hash the new PIN using bcrypt
+      const hashedNewPin = await bcrypt.hash(newPin, 12);
+      
+      // Update the password field with the new PIN
+      await this.userRepository.query(
+        "UPDATE users SET password = ? WHERE username = ?",
+        [hashedNewPin, username]
+      );
+
+      return {
+        error: false,
+        message: 'PIN changed successfully',
+      };
+
+    } catch (error) {
+      console.error('Change PIN error:', error);
+      return {
+        error: true,
+        message: 'An error occurred while changing PIN',
       };
     }
   }

@@ -5,6 +5,7 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import { ChangePinDto, ChangePinResponseDto } from './dto/change-pin.dto';
 import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
 import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
 import { Public } from './decorators/public.decorator';
@@ -86,6 +87,35 @@ export class AuthController {
   })
   async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
     return this.authService.changePassword(req.user.username, changePasswordDto);
+  }
+
+  @Post('change-pin')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change user PIN',
+    description: 'Change user PIN using current PIN verification. Requires role_id = 4.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PIN changed successfully',
+    type: ChangePinResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data or validation errors',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - JWT token required',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Role_id 4 required to change PINs',
+  })
+  async changePin(@Request() req: any, @Body() changePinDto: ChangePinDto): Promise<ChangePinResponseDto> {
+    return this.authService.changePin(req.user.username, changePinDto);
   }
 
   @Public()
