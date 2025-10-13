@@ -30,6 +30,9 @@ export class UserData {
 
   @ApiProperty()
   isPin: number;
+
+  @ApiProperty()
+  expired_at: string;
 }
 
 export class LoginResponseDto {

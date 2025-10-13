@@ -100,11 +100,13 @@ export class AuthService {
         };
       }
 
-      // Check user status
-      if (userWithLinkData.status === 0) {
+      // Check user status - only allow login if status is 1 (active)
+      const userStatus = parseInt(userWithLinkData.status);
+      
+      if (userStatus !== 1) {
         return {
           error: true,
-          message: `Your Subscription has expired on: ${userWithLinkData.created_at ? userWithLinkData.created_at.toString().substring(0, 10) : 'unknown date'}, Please renew.`,
+          message: `Your account has expired. Please renew your subscription.`,
           data: null,
         };
       }
@@ -139,6 +141,17 @@ export class AuthService {
       });
 
       // Prepare user data
+      const formatDate = (date: Date): string => {
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
+      const createdDate = userWithLinkData.created_at ? new Date(userWithLinkData.created_at) : new Date();
+      const expiredDate = new Date(createdDate);
+      expiredDate.setFullYear(expiredDate.getFullYear() + 1);
+
       const userData: UserData = {
         cd_code: userWithLinkData.cd_code || '',
         name: userWithLinkData.name || '',
@@ -150,6 +163,7 @@ export class AuthService {
         isNRB: userWithLinkData.isNRB || 0,
         cid: userWithLinkData.cid || '',
         isPin: userWithLinkData.isPin || 0,
+        expired_at: formatDate(expiredDate),
       };
 
       return {
