@@ -9,5 +9,14 @@ export class Symbol {
   symbol: string;
 
   @Column()
+  name: string;
+
+  @Column()
   status: number;
+
+  @Column({ name: 'security_type' })
+  security_type: string;
+
+  @Column()
+  trsstatus: number;
 }

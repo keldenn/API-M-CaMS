@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { OtpModule } from './otp/otp.module';
 import { NdiModule } from './ndi/ndi.module';
 import { HoldingsModule } from './holdings/holdings.module';
+import { StocksModule } from './stocks/stocks.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -23,6 +24,7 @@ import { getDatabaseConfig } from './config/database.config';
     OtpModule,
     NdiModule,
     HoldingsModule,
+    StocksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

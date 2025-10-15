@@ -27,7 +27,7 @@ export class HoldingsController {
     status: 500, 
     description: 'Internal server error' 
   })
-  async getHoldings(@Request() req): Promise<HoldingsResponseDto[]> {
+  async getHoldings(@Request() req): Promise<{ error: boolean; message: string; data: HoldingsResponseDto[] }> {
     try {
       // Extract CD code from JWT token payload
       const cdCode = req.user.cd_code;
@@ -36,7 +36,21 @@ export class HoldingsController {
         throw new HttpException('CD code not found in token', HttpStatus.UNAUTHORIZED);
       }
       
-      return await this.holdingsService.getHoldingsByCdCode(cdCode);
+      const holdings = await this.holdingsService.getHoldingsByCdCode(cdCode);
+      
+      if (holdings.length === 0) {
+        return {
+          error: false,
+          message: 'No holdings found',
+          data: []
+        };
+      }
+      
+      return {
+        error: false,
+        message: 'Holdings retrieved successfully',
+        data: holdings
+      };
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;

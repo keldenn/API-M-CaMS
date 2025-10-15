@@ -37,6 +37,10 @@ export class HoldingsService {
 
       const result = await this.cdsHoldingRepository.query(query, [cdCode]);
       
+      if (!result || result.length === 0) {
+        return [];
+      }
+      
       return result.map(row => ({
         symbol: row.symbol,
         volume: parseFloat(row.volume) || 0,

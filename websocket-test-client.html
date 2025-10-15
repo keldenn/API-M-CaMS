@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Stock Prices Test Client</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value.positive {
+            color: #28a745;
+        }
+
+        .stat-value.negative {
+            color: #dc3545;
+        }
+
+        .stat-value.neutral {
+            color: #6c757d;
+        }
+
+        .table-container {
+            padding: 30px;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            width: 300px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 14px;
+        }
+
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .symbol {
+            font-weight: bold;
+            color: #007bff;
+            font-family: 'Courier New', monospace;
+        }
+
+        .name {
+            color: #495057;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .price {
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+        }
+
+        .change {
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .change.positive {
+            color: #28a745;
+        }
+
+        .change.negative {
+            color: #dc3545;
+        }
+
+        .change.neutral {
+            color: #6c757d;
+        }
+
+        .timestamp {
+            color: #6c757d;
+            font-size: 12px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+            font-size: 18px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .flash-up {
+            animation: flashGreen 0.8s ease-in-out;
+        }
+
+        .flash-down {
+            animation: flashRed 0.8s ease-in-out;
+        }
+
+        @keyframes flashGreen {
+            0% { background-color: #d4edda; }
+            100% { background-color: transparent; }
+        }
+
+        @keyframes flashRed {
+            0% { background-color: #f8d7da; }
+            100% { background-color: transparent; }
+        }
+
+        .log-container {
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 20px 30px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+
+        .log-entry.error {
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+
+        .log-entry.success {
+            border-left-color: #28a745;
+            color: #155724;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls {
+                justify-content: center;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .table-container {
+                padding: 15px;
+                overflow-x: auto;
+            }
+
+            .table {
+                min-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📈 Real-Time Stock Prices</h1>
+            <p>WebSocket Test Client for NestJS API</p>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status disconnected" id="status">
+                <span id="statusIcon">🔴</span>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value neutral" id="totalStocks">0</div>
+                <div class="stat-label">Total Stocks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value positive" id="gainers">0</div>
+                <div class="stat-label">Gainers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value negative" id="losers">0</div>
+                <div class="stat-label">Losers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value neutral" id="lastUpdate">--:--:--</div>
+                <div class="stat-label">Last Update</div>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <div class="table-header">
+                <input type="text" class="search-box" id="searchBox" placeholder="Search stocks..." onkeyup="filterStocks()">
+            </div>
+            
+            <div id="tableContent">
+                <div class="no-data">
+                    Click "Connect" to start receiving real-time stock prices
+                </div>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div class="log-container">
+            <div class="log-title">Connection Log</div>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SERVER_URL = 'http://localhost:3000';
+        const WEBSOCKET_NAMESPACE = '/stocks';
+        
+        // Global variables
+        let socket = null;
+        let stocks = [];
+        let filteredStocks = [];
+        let previousPrices = {};
+
+        // DOM elements
+        const statusElement = document.getElementById('status');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusText = document.getElementById('statusText');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statsElement = document.getElementById('stats');
+        const tableContent = document.getElementById('tableContent');
+        const searchBox = document.getElementById('searchBox');
+        const logContainer = document.getElementById('logContainer');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 log entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Update status
+        function updateStatus(status) {
+            statusElement.className = `status ${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    statusIcon.textContent = '🟢';
+                    statusText.textContent = 'Connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    statsElement.style.display = 'grid';
+                    break;
+                case 'disconnected':
+                    statusIcon.textContent = '🔴';
+                    statusText.textContent = 'Disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    break;
+                case 'connecting':
+                    statusIcon.textContent = '🟡';
+                    statusText.textContent = 'Connecting...';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = true;
+                    break;
+            }
+        }
+
+        // Connect to WebSocket
+        function connect() {
+            if (socket && socket.connected) {
+                log('Already connected', 'info');
+                return;
+            }
+
+            log(`Connecting to ${SERVER_URL}${WEBSOCKET_NAMESPACE}...`, 'info');
+            updateStatus('connecting');
+
+            try {
+                socket = io(`${SERVER_URL}${WEBSOCKET_NAMESPACE}`, {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                });
+
+                // Connection events
+                socket.on('connect', () => {
+                    log('✅ Connected to WebSocket server', 'success');
+                    updateStatus('connected');
+                    socket.emit('subscribe', {});
+                });
+
+                socket.on('disconnect', (reason) => {
+                    log(`❌ Disconnected: ${reason}`, 'error');
+                    updateStatus('disconnected');
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    updateStatus('disconnected');
+                });
+
+                // Data events
+                socket.on('stockPrices', (data) => {
+                    log(`📊 Received initial stock prices: ${data.length} stocks`, 'success');
+                    handleStockData(data, false);
+                });
+
+                socket.on('priceUpdate', (data) => {
+                    log(`🔄 Received price update: ${data.length} stocks`, 'info');
+                    handleStockData(data, true);
+                });
+
+            } catch (error) {
+                log(`❌ Error creating connection: ${error.message}`, 'error');
+                updateStatus('disconnected');
+            }
+        }
+
+        // Disconnect from WebSocket
+        function disconnect() {
+            if (socket) {
+                log('🔌 Disconnecting...', 'info');
+                socket.disconnect();
+                socket = null;
+                updateStatus('disconnected');
+            }
+        }
+
+        // Handle stock data
+        function handleStockData(data, isUpdate) {
+            stocks = data;
+            filteredStocks = [...stocks];
+            
+            // Update stats
+            updateStats();
+            
+            // Update table
+            updateTable(isUpdate);
+            
+            // Update last update time
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = stocks.length;
+            const gainers = stocks.filter(s => s.priceChange > 0).length;
+            const losers = stocks.filter(s => s.priceChange < 0).length;
+            
+            document.getElementById('totalStocks').textContent = total;
+            document.getElementById('gainers').textContent = gainers;
+            document.getElementById('losers').textContent = losers;
+        }
+
+        // Update table
+        function updateTable(isUpdate) {
+            if (filteredStocks.length === 0) {
+                tableContent.innerHTML = '<div class="no-data">No stocks match your search</div>';
+                return;
+            }
+
+            let tableHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Name</th>
+                            <th>Current Price</th>
+                            <th>Change</th>
+                            <th>Last Update</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filteredStocks.forEach(stock => {
+                const changeClass = stock.priceChange > 0 ? 'positive' : stock.priceChange < 0 ? 'negative' : 'neutral';
+                const changeSign = stock.priceChange >= 0 ? '+' : '';
+                const timestamp = new Date(stock.timestamp).toLocaleTimeString();
+                
+                // Add flash animation for updates
+                let rowClass = '';
+                if (isUpdate && previousPrices[stock.symbol] !== undefined) {
+                    if (stock.currentPrice > previousPrices[stock.symbol]) {
+                        rowClass = 'flash-up';
+                    } else if (stock.currentPrice < previousPrices[stock.symbol]) {
+                        rowClass = 'flash-down';
+                    }
+                }
+                
+                // Store current price for next comparison
+                previousPrices[stock.symbol] = stock.currentPrice;
+
+                tableHTML += `
+                    <tr class="${rowClass}">
+                        <td class="symbol">${stock.symbol}</td>
+                        <td class="name" title="${stock.name}">${stock.name}</td>
+                        <td class="price">$${stock.currentPrice.toFixed(2)}</td>
+                        <td class="change ${changeClass}">${changeSign}$${stock.priceChange.toFixed(2)}</td>
+                        <td class="timestamp">${timestamp}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+            tableContent.innerHTML = tableHTML;
+        }
+
+        // Filter stocks
+        function filterStocks() {
+            const query = searchBox.value.toLowerCase();
+            filteredStocks = stocks.filter(stock => 
+                stock.symbol.toLowerCase().includes(query) ||
+                stock.name.toLowerCase().includes(query)
+            );
+            updateTable(false);
+        }
+
+        // Auto-connect on page load (optional)
+        // window.addEventListener('load', () => {
+        //     setTimeout(connect, 1000);
+        // });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // Initial log
+        log('WebSocket Test Client loaded', 'info');
+        log(`Server URL: ${SERVER_URL}${WEBSOCKET_NAMESPACE}`, 'info');
+    </script>
+</body>
+</html>
