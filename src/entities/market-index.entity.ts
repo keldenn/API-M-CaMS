@@ -10,4 +10,7 @@ export class MarketIndex {
 
   @Column({ type: 'datetime', name: 'created_date' })
   created_date: Date;
+
+  @Column({ name: 'market_cap', type: 'decimal', precision: 18, scale: 4, nullable: true })
+  market_cap: number;
 }

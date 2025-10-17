@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Movement WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .auth-section {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .auth-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .auth-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 14px;
+        }
+
+        .auth-input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .status-bar {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.authenticated {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chart-container {
+            padding: 30px;
+            height: 400px;
+            background: #f8f9fa;
+        }
+
+        .chart {
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
+            font-size: 18px;
+        }
+
+        .data-table {
+            padding: 30px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .table th {
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            color: white;
+            padding: 20px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 14px;
+        }
+
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .price {
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+        }
+
+        .date {
+            color: #6c757d;
+            font-size: 12px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+            font-size: 18px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        .log-container {
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 20px 30px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #FF6B6B;
+        }
+
+        .log-entry.error {
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+
+        .log-entry.success {
+            border-left-color: #28a745;
+            color: #155724;
+        }
+
+        .log-entry.warning {
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+
+        .data-summary {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .summary-card h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .table-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .data-table {
+            padding: 30px;
+        }
+
+        .json-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .auth-form {
+                flex-direction: column;
+            }
+
+            .auth-input {
+                width: 100%;
+            }
+
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls {
+                justify-content: center;
+            }
+
+            .data-table {
+                padding: 15px;
+                overflow-x: auto;
+            }
+
+            .table {
+                min-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📈 Price Movement Tracker</h1>
+            <p>Real-time Historical Price Data with Authentication</p>
+        </div>
+
+        <!-- Symbol Input Section -->
+        <div class="auth-section">
+            <div class="auth-form">
+                <input type="text" class="auth-input" id="symbolInput" placeholder="Enter Symbol (e.g., AAPL)" />
+                <button class="btn btn-success" id="connectBtn" onclick="connect()">Connect</button>
+            </div>
+            <div id="message"></div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status disconnected" id="status">
+                <span id="statusIcon">🔴</span>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <div class="controls">
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+                <button class="btn btn-success" id="testRestBtn" onclick="testRestAPI()" disabled>Test REST API</button>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="chart-container">
+            <div class="chart" id="chart">
+                <div class="chart-placeholder">
+                    Enter a symbol and connect to view price movement chart
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Summary -->
+        <div class="data-summary" id="dataSummary" style="display: none;">
+            <div class="summary-card">
+                <h3>📊 Data Summary</h3>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Records:</span>
+                        <span class="stat-value" id="totalRecords">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Date Range:</span>
+                        <span class="stat-value" id="dateRange">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Price Range:</span>
+                        <span class="stat-value" id="priceRange">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Latest Price:</span>
+                        <span class="stat-value" id="latestPrice">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="data-table">
+            <div class="table-header">
+                <h3>📈 Price Movement Data</h3>
+                <div class="table-controls">
+                    <button class="btn btn-primary" id="showAllBtn" onclick="showAllData()" disabled>Show All Data</button>
+                    <button class="btn btn-primary" id="showRecentBtn" onclick="showRecentData()" disabled>Show Recent 20</button>
+                    <button class="btn btn-primary" id="exportBtn" onclick="exportData()" disabled>Export JSON</button>
+                    <button class="btn btn-primary" id="rawDataBtn" onclick="displayRawData()" disabled>Show Raw JSON</button>
+                </div>
+            </div>
+            <div id="tableContent">
+                <div class="no-data">
+                    Enter a symbol and connect to view price movement data
+                </div>
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div class="log-container">
+            <div class="log-title">Connection Log</div>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SERVER_URL = 'http://localhost:3000';
+        const WEBSOCKET_NAMESPACE = '/price_movement';
+        
+        // Global variables
+        let socket = null;
+        let priceMovementData = [];
+        let currentSymbol = '';
+        let showAllDataFlag = false;
+
+        // DOM elements
+        const statusElement = document.getElementById('status');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusText = document.getElementById('statusText');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const testRestBtn = document.getElementById('testRestBtn');
+        const tableContent = document.getElementById('tableContent');
+        const chartElement = document.getElementById('chart');
+        const logContainer = document.getElementById('logContainer');
+        const message = document.getElementById('message');
+        const dataSummary = document.getElementById('dataSummary');
+        const showAllBtn = document.getElementById('showAllBtn');
+        const showRecentBtn = document.getElementById('showRecentBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const rawDataBtn = document.getElementById('rawDataBtn');
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 log entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Update status
+        function updateStatus(status) {
+            statusElement.className = `status ${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    statusIcon.textContent = '🟢';
+                    statusText.textContent = `Connected (${currentSymbol})`;
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    testRestBtn.disabled = false;
+                    break;
+                case 'disconnected':
+                    statusIcon.textContent = '🔴';
+                    statusText.textContent = 'Disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    testRestBtn.disabled = true;
+                    break;
+                case 'connecting':
+                    statusIcon.textContent = '🟡';
+                    statusText.textContent = 'Connecting...';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = true;
+                    testRestBtn.disabled = true;
+                    break;
+            }
+        }
+
+        // Show message
+        function showMessage(msg, type) {
+            message.innerHTML = `<div class="${type}-message">${msg}</div>`;
+        }
+
+        // Connect to WebSocket
+        function connect() {
+            if (socket && socket.connected) {
+                log('Already connected', 'info');
+                return;
+            }
+
+            const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
+            if (!symbol) {
+                showMessage('Please enter a symbol', 'error');
+                return;
+            }
+
+            currentSymbol = symbol;
+            log(`Connecting to ${SERVER_URL}${WEBSOCKET_NAMESPACE} with symbol: ${symbol}...`, 'info');
+            updateStatus('connecting');
+
+            try {
+                socket = io(`${SERVER_URL}${WEBSOCKET_NAMESPACE}`, {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000
+                });
+
+                // Connection events
+                socket.on('connect', () => {
+                    log('✅ Connected to Price Movement WebSocket server', 'success');
+                    updateStatus('connected');
+                    socket.emit('subscribe', { symbol: currentSymbol });
+                });
+
+                socket.on('disconnect', (reason) => {
+                    log(`❌ Disconnected: ${reason}`, 'error');
+                    updateStatus('disconnected');
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    updateStatus('disconnected');
+                });
+
+                socket.on('error', (data) => {
+                    log(`❌ Server error: ${data.message}`, 'error');
+                    showMessage(data.message, 'error');
+                });
+
+                // Data events
+                socket.on('priceMovementData', (data) => {
+                    log(`📊 Received initial price movement data: ${data.length} records`, 'success');
+                    handlePriceMovementData(data, false);
+                });
+
+                socket.on('priceMovementUpdate', (data) => {
+                    log(`🔄 Received price movement update: ${data.length} records`, 'info');
+                    handlePriceMovementData(data, true);
+                });
+
+            } catch (error) {
+                log(`❌ Error creating connection: ${error.message}`, 'error');
+                updateStatus('disconnected');
+            }
+        }
+
+        // Disconnect from WebSocket
+        function disconnect() {
+            if (socket) {
+                log('🔌 Disconnecting...', 'info');
+                socket.disconnect();
+                socket = null;
+                updateStatus('disconnected');
+            }
+        }
+
+        // Handle price movement data
+        function handlePriceMovementData(data, isUpdate) {
+            priceMovementData = data;
+            
+            // Show data summary
+            updateDataSummary();
+            
+            // Update table
+            updateTable();
+            
+            // Update chart
+            updateChart();
+            
+            // Enable controls
+            showAllBtn.disabled = false;
+            showRecentBtn.disabled = false;
+            exportBtn.disabled = false;
+            rawDataBtn.disabled = false;
+            
+            log(`📊 Received ${data.length} price movement records for ${currentSymbol}`, 'success');
+        }
+
+        // Update data summary
+        function updateDataSummary() {
+            if (priceMovementData.length === 0) {
+                dataSummary.style.display = 'none';
+                return;
+            }
+
+            dataSummary.style.display = 'block';
+            
+            const totalRecords = priceMovementData.length;
+            const firstRecord = priceMovementData[0];
+            const lastRecord = priceMovementData[priceMovementData.length - 1];
+            
+            const prices = priceMovementData.map(d => d.price);
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            
+            document.getElementById('totalRecords').textContent = totalRecords.toLocaleString();
+            document.getElementById('dateRange').textContent = 
+                `${new Date(firstRecord.date).toLocaleDateString()} - ${new Date(lastRecord.date).toLocaleDateString()}`;
+            document.getElementById('priceRange').textContent = 
+                `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`;
+            document.getElementById('latestPrice').textContent = 
+                `$${lastRecord.price.toFixed(2)}`;
+        }
+
+        // Update table
+        function updateTable() {
+            if (priceMovementData.length === 0) {
+                tableContent.innerHTML = '<div class="no-data">No price movement data available</div>';
+                return;
+            }
+
+            const dataToShow = showAllDataFlag ? priceMovementData : priceMovementData.slice(-20);
+            const dataToShowReversed = [...dataToShow].reverse(); // Show most recent first
+
+            let tableHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Price</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            dataToShowReversed.forEach((item, index) => {
+                const date = new Date(item.date);
+                const dateStr = date.toLocaleDateString();
+                const timeStr = date.toLocaleTimeString();
+                
+                tableHTML += `
+                    <tr>
+                        <td class="date">${showAllDataFlag ? (priceMovementData.length - dataToShowReversed.length + index + 1) : (dataToShowReversed.length - index)}</td>
+                        <td class="price">$${item.price.toFixed(2)}</td>
+                        <td class="date">${dateStr}</td>
+                        <td class="timestamp">${timeStr}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+            tableContent.innerHTML = tableHTML;
+        }
+
+        // Show all data
+        function showAllData() {
+            showAllDataFlag = true;
+            showAllBtn.disabled = true;
+            showRecentBtn.disabled = false;
+            updateTable();
+            log(`📊 Showing all ${priceMovementData.length} records`, 'info');
+        }
+
+        // Show recent data
+        function showRecentData() {
+            showAllDataFlag = false;
+            showAllBtn.disabled = false;
+            showRecentBtn.disabled = true;
+            updateTable();
+            log(`📊 Showing recent 20 records`, 'info');
+        }
+
+        // Export data as JSON
+        function exportData() {
+            const dataStr = JSON.stringify(priceMovementData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${currentSymbol}_price_movement_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            log(`📁 Exported ${priceMovementData.length} records as JSON`, 'success');
+        }
+
+        // Display raw JSON data for debugging
+        function displayRawData() {
+            if (priceMovementData.length === 0) {
+                log('No data to display', 'warning');
+                return;
+            }
+
+            const dataStr = JSON.stringify(priceMovementData, null, 2);
+            const jsonDisplay = document.createElement('div');
+            jsonDisplay.className = 'json-display';
+            jsonDisplay.textContent = dataStr;
+            
+            // Remove existing JSON display if any
+            const existingDisplay = document.querySelector('.json-display');
+            if (existingDisplay) {
+                existingDisplay.remove();
+            }
+            
+            tableContent.appendChild(jsonDisplay);
+            log(`📄 Displayed raw JSON data (${priceMovementData.length} records)`, 'info');
+        }
+
+        // Update chart (simple line chart)
+        function updateChart() {
+            if (priceMovementData.length === 0) {
+                chartElement.innerHTML = '<div class="chart-placeholder">No data to display</div>';
+                return;
+            }
+
+            // Simple chart implementation
+            const canvas = document.createElement('canvas');
+            canvas.width = chartElement.offsetWidth;
+            canvas.height = chartElement.offsetHeight;
+            chartElement.innerHTML = '';
+            chartElement.appendChild(canvas);
+
+            const ctx = canvas.getContext('2d');
+            const data = priceMovementData.slice(-50); // Show last 50 points
+            
+            if (data.length < 2) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Not enough data for chart', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            // Find min/max values
+            const prices = data.map(d => d.price);
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const priceRange = maxPrice - minPrice;
+
+            // Draw chart
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#FF6B6B';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            data.forEach((item, index) => {
+                const x = (index / (data.length - 1)) * (canvas.width - 40) + 20;
+                const y = canvas.height - 20 - ((item.price - minPrice) / priceRange) * (canvas.height - 40);
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+
+            ctx.stroke();
+
+            // Add labels
+            ctx.fillStyle = '#6c757d';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Min: $${minPrice.toFixed(2)}`, 10, canvas.height - 10);
+            ctx.textAlign = 'right';
+            ctx.fillText(`Max: $${maxPrice.toFixed(2)}`, canvas.width - 10, canvas.height - 10);
+        }
+
+        // Test REST API
+        async function testRestAPI() {
+            if (!currentSymbol) {
+                showMessage('Please enter a symbol first', 'error');
+                return;
+            }
+
+            try {
+                log(`Testing REST API for symbol: ${currentSymbol}`, 'info');
+                
+                const response = await fetch(`${SERVER_URL}/stocks/fetch-price-movement/${currentSymbol}`, {
+                    headers: {
+                        'Authorization': 'Bearer YOUR_JWT_TOKEN_HERE', // Replace with actual token for testing
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ REST API success: ${data.length} records`, 'success');
+                    handlePriceMovementData(data, false);
+                } else {
+                    const error = await response.text();
+                    log(`❌ REST API error: ${error}`, 'error');
+                    showMessage(`REST API error: ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ REST API request failed: ${error.message}`, 'error');
+                showMessage(`Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        // Initial log
+        log('Price Movement WebSocket Test Client loaded', 'info');
+        log(`Server URL: ${SERVER_URL}${WEBSOCKET_NAMESPACE}`, 'info');
+        log('Please enter a symbol to connect', 'info');
+    </script>
+</body>
+</html>

@@ -2,8 +2,10 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef }
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketPrice } from '../entities/market-price.entity';
+import { MarketIndex } from '../entities/market-index.entity';
 import { Symbol } from '../entities/symbol.entity';
 import { StockPriceDto } from './dto/stock-price.dto';
+import { MarketStatsDto } from './dto/market-stats.dto';
 import { StocksGateway } from './stocks.gateway';
 
 @Injectable()
@@ -16,6 +18,8 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(MarketPrice)
     private readonly marketPriceRepository: Repository<MarketPrice>,
+    @InjectRepository(MarketIndex)
+    private readonly marketIndexRepository: Repository<MarketIndex>,
     @InjectRepository(Symbol)
     private readonly symbolRepository: Repository<Symbol>,
     @Inject(forwardRef(() => StocksGateway))
@@ -102,6 +106,28 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     }
 
     return changedPrices;
+  }
+
+  async getMarketStats(): Promise<MarketStatsDto> {
+    const query = `
+      SELECT 
+        (SELECT market_cap 
+         FROM market_index 
+         ORDER BY created_date DESC 
+         LIMIT 1) AS market_cap,
+        (SELECT COUNT(*) 
+         FROM symbol 
+         WHERE security_type = 'OS' 
+           AND status = 1 
+           AND trsstatus IN (1, 3)) AS total_listed_scripts
+    `;
+
+    const result = await this.marketIndexRepository.query(query);
+    
+    return {
+      market_cap: result[0]?.market_cap ? parseFloat(result[0].market_cap) : 0,
+      total_listed_scripts: parseInt(result[0]?.total_listed_scripts) || 0,
+    };
   }
 }
 
