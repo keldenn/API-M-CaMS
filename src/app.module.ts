@@ -9,7 +9,8 @@ import { OtpModule } from './otp/otp.module';
 import { NdiModule } from './ndi/ndi.module';
 import { HoldingsModule } from './holdings/holdings.module';
 import { StocksModule } from './stocks/stocks.module';
-import { getDatabaseConfig } from './config/database.config';
+import { MarketDataModule } from './market-data/market-data.module';
+import { getDatabaseConfig, getFinancialDatabaseConfig } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 
 @Module({
@@ -19,7 +20,13 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
       envFilePath: '.env',
     }),
     TypeOrmModule.forRootAsync({
+      name: 'default',
       useFactory: getDatabaseConfig,
+      inject: [ConfigService],
+    }),
+    TypeOrmModule.forRootAsync({
+      name: 'financial',
+      useFactory: getFinancialDatabaseConfig,
       inject: [ConfigService],
     }),
     AuthModule,
@@ -27,6 +34,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     NdiModule,
     HoldingsModule,
     StocksModule,
+    MarketDataModule,
   ],
   controllers: [AppController],
   providers: [

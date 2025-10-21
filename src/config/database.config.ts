@@ -29,3 +29,31 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   };
 };
 
+export const getFinancialDatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions => {
+  const requiredEnvVars = ['DB_HOST1', 'DB_PORT1', 'DB_USERNAME1', 'DB_PASSWORD1', 'DB_DATABASE1'];
+  
+  for (const envVar of requiredEnvVars) {
+    if (!configService.get(envVar)) {
+      throw new Error(`${envVar} environment variable is required`);
+    }
+  }
+
+  return {
+    type: 'mysql',
+    host: configService.get<string>('DB_HOST1')!,
+    port: configService.get<number>('DB_PORT1')!,
+    username: configService.get<string>('DB_USERNAME1')!,
+    password: configService.get<string>('DB_PASSWORD1')!,
+    database: configService.get<string>('DB_DATABASE1')!,
+    entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+    synchronize: false,
+    migrations: [],
+    migrationsRun: false,
+    logging: configService.get<boolean>('DB_LOGGING') || false,
+    timezone: configService.get<string>('DB_TIMEZONE') || '+06:00',
+    extra: {
+      insecureAuth: configService.get<boolean>('DB_INSECURE_AUTH') !== false,
+    },
+  };
+};
+

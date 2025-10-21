@@ -3,8 +3,8 @@ import { Symbol } from './symbol.entity';
 
 @Entity('market_price_history')
 export class MarketPriceHistory {
-  @PrimaryGeneratedColumn({ name: 'market_price_history_id' })
-  market_price_history_id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ name: 'symbol_id' })
   symbol_id: number;

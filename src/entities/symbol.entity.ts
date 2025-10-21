@@ -19,4 +19,7 @@ export class Symbol {
 
   @Column()
   trsstatus: number;
+
+  @Column({ name: 'paid_up_shares', type: 'decimal', precision: 18, scale: 2 })
+  paid_up_shares: number;
 }
