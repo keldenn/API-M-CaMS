@@ -36,15 +36,29 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
 
   async getPriceMovement(symbol: string): Promise<PriceMovementDto[]> {
     const query = `
-      SELECT mph.price, mph.date
-      FROM market_price_history AS mph
-      INNER JOIN symbol AS s 
-        ON s.symbol_id = mph.symbol_id
-      WHERE s.symbol = ?
-      ORDER BY mph.date ASC
+      WITH ranked_prices AS (
+        SELECT 
+          mph.symbol_id,
+          mph.price,
+          mph.date,
+          ROW_NUMBER() OVER (
+            PARTITION BY DATE(mph.date), mph.symbol_id
+            ORDER BY mph.date DESC
+          ) AS rn
+        FROM market_price_history AS mph
+        INNER JOIN symbol AS s 
+          ON s.symbol_id = mph.symbol_id
+        WHERE s.symbol = 'BNBL'
+      )
+      SELECT 
+        price, 
+        date
+      FROM ranked_prices
+      WHERE rn = 1
+      ORDER BY date ASC;
     `;
 
-    this.logger.log(`Fetching price movement data for symbol: ${symbol}`);
+    this.logger.log(`Fetching latest price movement data per day for symbol: ${symbol}`);
     const results = await this.marketPriceHistoryRepository.query(query, [symbol]);
     
     this.logger.log(`Query returned ${results.length} records for symbol: ${symbol}`);
