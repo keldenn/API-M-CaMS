@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L5Price WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .data-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .data-table th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .data-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .symbol {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .price {
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        .date {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .log-container {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-timestamp {
+            color: #6c757d;
+            font-size: 0.8rem;
+        }
+
+        .log-success {
+            color: #28a745;
+        }
+
+        .log-error {
+            color: #dc3545;
+        }
+
+        .log-info {
+            color: #17a2b8;
+        }
+
+        .log-warning {
+            color: #ffc107;
+        }
+
+        .no-data {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .control-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .data-table {
+                font-size: 0.9rem;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 L5Price WebSocket Test Client</h1>
+            <p>Real-time Latest 5 Days Price Movement for All Listed Companies</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <button id="connectBtn" class="btn btn-primary">Connect</button>
+                <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
+                <button id="subscribeBtn" class="btn btn-primary" disabled>Subscribe</button>
+                <button id="unsubscribeBtn" class="btn btn-danger" disabled>Unsubscribe</button>
+            </div>
+
+            <div id="status" class="status disconnected">
+                <span id="statusIcon">🔴</span>
+                <span id="statusText">Disconnected</span>
+            </div>
+
+            <div id="stats" class="stats" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="uniqueSymbols">0</div>
+                    <div class="stat-label">Unique Symbols</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastUpdate">-</div>
+                    <div class="stat-label">Last Update</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="data-section">
+                <h2 class="section-title">📊 L5Price Data</h2>
+                <div id="dataContainer">
+                    <div class="no-data">No data available. Connect and subscribe to see L5price data.</div>
+                </div>
+            </div>
+
+            <div class="data-section">
+                <h2 class="section-title">📝 Connection Log</h2>
+                <div id="logContainer" class="log-container">
+                    <div class="log-entry log-info">
+                        <span class="log-timestamp">[Ready]</span> L5Price WebSocket Test Client initialized
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SERVER_URL = 'http://localhost:3000';
+        const WEBSOCKET_NAMESPACE = '/L5price';
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+        const unsubscribeBtn = document.getElementById('unsubscribeBtn');
+        const statusElement = document.getElementById('status');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusText = document.getElementById('statusText');
+        const statsElement = document.getElementById('stats');
+        const dataContainer = document.getElementById('dataContainer');
+        const logContainer = document.getElementById('logContainer');
+        const totalRecordsElement = document.getElementById('totalRecords');
+        const uniqueSymbolsElement = document.getElementById('uniqueSymbols');
+        const lastUpdateElement = document.getElementById('lastUpdate');
+
+        // State
+        let socket = null;
+        let isSubscribed = false;
+        let currentData = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('L5Price WebSocket Test Client initialized', 'info');
+        });
+
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        subscribeBtn.addEventListener('click', subscribe);
+        unsubscribeBtn.addEventListener('click', unsubscribe);
+
+        // Logging function
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Keep only last 50 log entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Update status
+        function updateStatus(status) {
+            statusElement.className = `status ${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    statusIcon.textContent = '🟢';
+                    statusText.textContent = 'Connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    subscribeBtn.disabled = false;
+                    statsElement.style.display = 'grid';
+                    break;
+                case 'disconnected':
+                    statusIcon.textContent = '🔴';
+                    statusText.textContent = 'Disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    subscribeBtn.disabled = true;
+                    unsubscribeBtn.disabled = true;
+                    statsElement.style.display = 'none';
+                    break;
+                case 'connecting':
+                    statusIcon.textContent = '🟡';
+                    statusText.textContent = 'Connecting...';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = true;
+                    subscribeBtn.disabled = true;
+                    unsubscribeBtn.disabled = true;
+                    break;
+            }
+        }
+
+        // Connect to WebSocket
+        function connect() {
+            if (socket && socket.connected) {
+                log('Already connected', 'info');
+                return;
+            }
+
+            log(`Connecting to ${SERVER_URL}${WEBSOCKET_NAMESPACE}...`, 'info');
+            updateStatus('connecting');
+
+            try {
+                socket = io(`${SERVER_URL}${WEBSOCKET_NAMESPACE}`, {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000,
+                });
+
+                // Connection events
+                socket.on('connect', () => {
+                    log('✅ Connected to L5Price WebSocket server', 'success');
+                    updateStatus('connected');
+                });
+
+                socket.on('disconnect', (reason) => {
+                    log(`❌ Disconnected from server: ${reason}`, 'error');
+                    updateStatus('disconnected');
+                    isSubscribed = false;
+                    updateSubscriptionButtons();
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    updateStatus('disconnected');
+                });
+
+                // L5Price data events
+                socket.on('l5PriceData', (data) => {
+                    log(`📊 Received L5Price data: ${data.length} records`, 'success');
+                    currentData = data;
+                    displayData(data);
+                    updateStats(data);
+                });
+
+                socket.on('l5PriceUpdate', (data) => {
+                    log(`🔄 L5Price data updated: ${data.length} records`, 'info');
+                    currentData = data;
+                    displayData(data);
+                    updateStats(data);
+                });
+
+                socket.on('error', (error) => {
+                    log(`❌ Server error: ${error.message}`, 'error');
+                });
+
+            } catch (error) {
+                log(`❌ Failed to connect: ${error.message}`, 'error');
+                updateStatus('disconnected');
+            }
+        }
+
+        // Disconnect from WebSocket
+        function disconnect() {
+            if (socket) {
+                if (isSubscribed) {
+                    unsubscribe();
+                }
+                socket.disconnect();
+                socket = null;
+            }
+            updateStatus('disconnected');
+            log('Disconnected from server', 'info');
+        }
+
+        // Subscribe to L5Price data
+        function subscribe() {
+            if (!socket || !socket.connected) {
+                log('Not connected to server', 'error');
+                return;
+            }
+
+            log('Subscribing to L5Price data...', 'info');
+            socket.emit('subscribe', {});
+            isSubscribed = true;
+            updateSubscriptionButtons();
+        }
+
+        // Unsubscribe from L5Price data
+        function unsubscribe() {
+            if (!socket || !socket.connected) {
+                log('Not connected to server', 'error');
+                return;
+            }
+
+            log('Unsubscribing from L5Price data...', 'info');
+            socket.emit('unsubscribe', {});
+            isSubscribed = false;
+            updateSubscriptionButtons();
+        }
+
+        // Update subscription button states
+        function updateSubscriptionButtons() {
+            if (isSubscribed) {
+                subscribeBtn.disabled = true;
+                unsubscribeBtn.disabled = false;
+            } else {
+                subscribeBtn.disabled = !socket || !socket.connected;
+                unsubscribeBtn.disabled = true;
+            }
+        }
+
+        // Display L5Price data
+        function displayData(data) {
+            if (!data || data.length === 0) {
+                dataContainer.innerHTML = '<div class="no-data">No L5Price data available</div>';
+                return;
+            }
+
+            // Group data by symbol
+            const groupedData = {};
+            data.forEach(item => {
+                if (!groupedData[item.symbol]) {
+                    groupedData[item.symbol] = [];
+                }
+                groupedData[item.symbol].push(item);
+            });
+
+            // Create HTML table
+            let html = '<table class="data-table"><thead><tr><th>Symbol</th><th>Price</th><th>Date</th><th>Days</th></tr></thead><tbody>';
+            
+            Object.keys(groupedData).sort().forEach(symbol => {
+                const symbolData = groupedData[symbol].sort((a, b) => new Date(b.date) - new Date(a.date));
+                symbolData.forEach((item, index) => {
+                    const date = new Date(item.date);
+                    const dayNumber = symbolData.length - index;
+                    html += `
+                        <tr>
+                            <td class="symbol">${item.symbol}</td>
+                            <td class="price">$${parseFloat(item.price).toFixed(2)}</td>
+                            <td class="date">${date.toLocaleDateString()}</td>
+                            <td>Day ${dayNumber}</td>
+                        </tr>
+                    `;
+                });
+            });
+            
+            html += '</tbody></table>';
+            dataContainer.innerHTML = html;
+        }
+
+        // Update statistics
+        function updateStats(data) {
+            if (!data || data.length === 0) {
+                totalRecordsElement.textContent = '0';
+                uniqueSymbolsElement.textContent = '0';
+                lastUpdateElement.textContent = '-';
+                return;
+            }
+
+            const uniqueSymbols = new Set(data.map(item => item.symbol));
+            totalRecordsElement.textContent = data.length;
+            uniqueSymbolsElement.textContent = uniqueSymbols.size;
+            lastUpdateElement.textContent = new Date().toLocaleTimeString();
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>
