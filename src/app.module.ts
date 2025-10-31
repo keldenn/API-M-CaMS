@@ -10,6 +10,7 @@ import { NdiModule } from './ndi/ndi.module';
 import { HoldingsModule } from './holdings/holdings.module';
 import { StocksModule } from './stocks/stocks.module';
 import { MarketDataModule } from './market-data/market-data.module';
+import { CorporateActionsModule } from './corporate-actions/corporate-actions.module';
 import { getDatabaseConfig, getFinancialDatabaseConfig } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 
@@ -35,6 +36,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     HoldingsModule,
     StocksModule,
     MarketDataModule,
+    CorporateActionsModule,
   ],
   controllers: [AppController],
   providers: [
