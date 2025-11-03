@@ -8,6 +8,9 @@ import { NdiProofResponseDto, NdiProofResultDto } from '../dto/ndi-auth.dto';
 export class NdiIntegrationService {
   private readonly logger = new Logger(NdiIntegrationService.name);
 
+  // In-memory storage for verification results (threadId -> result)
+  private readonly verificationResults = new Map<string, NdiProofResultDto>();
+
   constructor(
     private readonly ndiAuthService: NdiAuthService,
     private readonly ndiVerifierService: NdiVerifierService,
@@ -38,18 +41,27 @@ export class NdiIntegrationService {
 
       // Step 2: Create proof request
       let proofRequest: NdiProofResponseDto;
-      
+
       if (attributes && attributes.length > 0) {
-        proofRequest = await this.ndiVerifierService.createCustomProofRequest(proofName, attributes);
+        proofRequest = await this.ndiVerifierService.createCustomProofRequest(
+          proofName,
+          attributes,
+        );
       } else {
-        proofRequest = await this.ndiVerifierService.createFoundationalIdProofRequest();
+        proofRequest =
+          await this.ndiVerifierService.createFoundationalIdProofRequest();
       }
 
       // Step 3: Subscribe to NATS for proof results (if NATS is available)
       try {
-        await this.subscribeToProofResult(proofRequest.data.proofRequestThreadId);
+        await this.subscribeToProofResult(
+          proofRequest.data.proofRequestThreadId,
+        );
       } catch (error) {
-        this.logger.warn('NATS subscription failed, but verification workflow will continue:', error.message);
+        this.logger.warn(
+          'NATS subscription failed, but verification workflow will continue:',
+          error.message,
+        );
       }
 
       this.logger.log('NDI verification workflow initiated successfully');
@@ -61,7 +73,10 @@ export class NdiIntegrationService {
         threadId: proofRequest.data.proofRequestThreadId,
       };
     } catch (error) {
-      this.logger.error('Failed to initiate verification workflow:', error.message);
+      this.logger.error(
+        'Failed to initiate verification workflow:',
+        error.message,
+      );
       throw error;
     }
   }
@@ -81,13 +96,18 @@ export class NdiIntegrationService {
    * Handle proof result when received via NATS
    */
   private async handleProofResult(result: NdiProofResultDto): Promise<void> {
+    // Store the result in memory for status queries
+    this.verificationResults.set(result.threadId, result);
+
     // Log the result in the exact JSON format requested
     this.logger.log('=== NDI PROOF RESULT ===');
     this.logger.log(JSON.stringify(result, null, 2));
     this.logger.log('========================');
 
     try {
-      const normalizedStatus = (result?.status ?? 'pending').toString().toLowerCase();
+      const normalizedStatus = (result?.status ?? 'pending')
+        .toString()
+        .toLowerCase();
       // Process the proof result based on status
       switch (normalizedStatus) {
         case 'verified':
@@ -105,22 +125,27 @@ export class NdiIntegrationService {
           this.logger.warn(`Unknown proof result status: ${result?.status}`);
       }
     } catch (error) {
-      this.logger.error(`Error handling proof result for thread ${result.threadId}:`, error.message);
+      this.logger.error(
+        `Error handling proof result for thread ${result.threadId}:`,
+        error.message,
+      );
     }
   }
 
   /**
    * Handle successful verification
    */
-  private async handleSuccessfulVerification(result: NdiProofResultDto): Promise<void> {
+  private async handleSuccessfulVerification(
+    result: NdiProofResultDto,
+  ): Promise<void> {
     this.logger.log(`Verification successful for thread ${result.threadId}`);
-    
+
     // Here you can:
     // 1. Save verification result to database
     // 2. Update user status
     // 3. Send notifications
     // 4. Trigger business logic
-    
+
     // Example: Log the verified attributes
     if (result.proofData) {
       this.logger.log('Verified attributes:', result.proofData);
@@ -130,9 +155,11 @@ export class NdiIntegrationService {
   /**
    * Handle rejected verification
    */
-  private async handleRejectedVerification(result: NdiProofResultDto): Promise<void> {
+  private async handleRejectedVerification(
+    result: NdiProofResultDto,
+  ): Promise<void> {
     this.logger.log(`Verification rejected for thread ${result.threadId}`);
-    
+
     // Here you can:
     // 1. Log the rejection reason
     // 2. Update user status
@@ -143,9 +170,11 @@ export class NdiIntegrationService {
   /**
    * Handle expired verification
    */
-  private async handleExpiredVerification(result: NdiProofResultDto): Promise<void> {
+  private async handleExpiredVerification(
+    result: NdiProofResultDto,
+  ): Promise<void> {
     this.logger.log(`Verification expired for thread ${result.threadId}`);
-    
+
     // Here you can:
     // 1. Clean up expired verification
     // 2. Notify user to retry
@@ -155,10 +184,28 @@ export class NdiIntegrationService {
   /**
    * Get verification status for a thread
    */
-  async getVerificationStatus(threadId: string): Promise<{ threadId: string; status: string }> {
+  async getVerificationStatus(threadId: string): Promise<{
+    threadId: string;
+    status: string;
+    proofData?: any;
+    timestamp?: string;
+  }> {
+    const result = this.verificationResults.get(threadId);
+
+    if (result) {
+      // Return the stored result
+      return {
+        threadId: result.threadId,
+        status: result.status,
+        proofData: result.proofData,
+        timestamp: result.timestamp,
+      };
+    }
+
+    // No result found, still pending
     return {
       threadId,
-      status: 'pending', // This would typically come from your database
+      status: 'pending',
     };
   }
 
@@ -168,9 +215,14 @@ export class NdiIntegrationService {
   async cleanupVerification(threadId: string): Promise<void> {
     try {
       await this.natsService.unsubscribeFromProofResult(threadId);
-      this.logger.log(`Cleaned up verification resources for thread ${threadId}`);
+      this.logger.log(
+        `Cleaned up verification resources for thread ${threadId}`,
+      );
     } catch (error) {
-      this.logger.error(`Error cleaning up verification for thread ${threadId}:`, error.message);
+      this.logger.error(
+        `Error cleaning up verification for thread ${threadId}:`,
+        error.message,
+      );
     }
   }
 }

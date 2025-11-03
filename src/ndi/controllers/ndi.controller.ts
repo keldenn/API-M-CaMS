@@ -224,9 +224,12 @@ export class NdiController {
     status: 200,
     description: 'Verification status retrieved',
   })
-  async getVerificationStatus(
-    @Param('threadId') threadId: string,
-  ): Promise<{ threadId: string; status: string }> {
+  async getVerificationStatus(@Param('threadId') threadId: string): Promise<{
+    threadId: string;
+    status: string;
+    proofData?: any;
+    timestamp?: string;
+  }> {
     return this.ndiIntegrationService.getVerificationStatus(threadId);
   }
 
