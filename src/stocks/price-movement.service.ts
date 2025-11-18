@@ -48,7 +48,7 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
         FROM market_price_history AS mph
         INNER JOIN symbol AS s 
           ON s.symbol_id = mph.symbol_id
-        WHERE s.symbol = 'BNBL'
+        WHERE s.symbol = ?
       )
       SELECT 
         price, 

@@ -11,6 +11,8 @@ import { HoldingsModule } from './holdings/holdings.module';
 import { StocksModule } from './stocks/stocks.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { CorporateActionsModule } from './corporate-actions/corporate-actions.module';
+import { RegisterModule } from './register/register.module';
+import { CdCodeModule } from './cd-code/cd-code.module';
 import { getDatabaseConfig, getFinancialDatabaseConfig } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 
@@ -37,6 +39,8 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     StocksModule,
     MarketDataModule,
     CorporateActionsModule,
+    RegisterModule,
+    CdCodeModule,
   ],
   controllers: [AppController],
   providers: [
