@@ -4,6 +4,7 @@ import { CorporateActionsService } from './corporate-actions.service';
 import { CorporateActionsResponseDto } from './dto/corporate-actions-response.dto';
 import { AgmResponseDto } from './dto/agm-response.dto';
 import { SingleScriptResponseDto } from './dto/single-script-response.dto';
+import { ListedScriptsResponseDto } from './dto/listed-scripts-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Company')
@@ -110,6 +111,29 @@ export class CorporateActionsController {
   })
   async getSingleScript(@Param('script') script: string): Promise<SingleScriptResponseDto[]> {
     return this.corporateActionsService.getSingleScriptBySymbol(script);
+  }
+
+  @Get('fetch-listed-scripts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all listed scripts',
+    description: 'Retrieve all active scripts with security type "OS" (Ordinary Shares).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Listed scripts retrieved successfully',
+    type: [ListedScriptsResponseDto],
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - JWT token required',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Failed to fetch listed scripts',
+  })
+  async fetchListedScripts(): Promise<ListedScriptsResponseDto[]> {
+    return this.corporateActionsService.fetchListedScripts();
   }
 }
 

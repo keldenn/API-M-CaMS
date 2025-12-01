@@ -523,10 +523,11 @@ export class RegisterService {
       const isBcrypt = 1; // Static is_bcrypt = 1
       const amount = dto.fee || 0;
       const amtStatus = 1; // Same as fee_status (1 after payment success)
+      const isPin = 1; // Static isPin = 1
 
       await queryRunner.query(
-        `INSERT INTO users (name, username, password, role_id, participant_code, phone, email, status, log_check, address, cid, is_bcrypt, cd_code, amount, amt_status, orderNo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (name, username, password, role_id, participant_code, phone, email, status, log_check, address, cid, is_bcrypt, cd_code, amount, amt_status, orderNo, isPin)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           fullName,
           username,
@@ -544,6 +545,7 @@ export class RegisterService {
           amount,
           amtStatus,
           dto.orderNo,
+          isPin,
         ]
       );
 

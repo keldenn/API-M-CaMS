@@ -6,7 +6,9 @@ import { Agms } from '../entities/agms.entity';
 import { CorporateActionsResponseDto } from './dto/corporate-actions-response.dto';
 import { AgmResponseDto } from './dto/agm-response.dto';
 import { SingleScriptResponseDto } from './dto/single-script-response.dto';
+import { ListedScriptsResponseDto } from './dto/listed-scripts-response.dto';
 import { Scripts } from '../entities/scripts.entity';
+import { Symbol } from '../entities/symbol.entity';
 
 @Injectable()
 export class CorporateActionsService {
@@ -17,6 +19,8 @@ export class CorporateActionsService {
     private agmsRepository: Repository<Agms>,
     @InjectRepository(Scripts, 'financial')
     private scriptsRepository: Repository<Scripts>,
+    @InjectRepository(Symbol, 'default')
+    private symbolRepository: Repository<Symbol>,
   ) {}
 
   async getCorporateActionsByScript(script: string): Promise<CorporateActionsResponseDto[]> {
@@ -137,6 +141,34 @@ export class CorporateActionsService {
       }
       console.error('Error fetching single script:', error);
       throw new NotFoundException(`Failed to fetch script for symbol: ${script}`);
+    }
+  }
+
+  async fetchListedScripts(): Promise<ListedScriptsResponseDto[]> {
+    // Execute raw SQL query as provided by the user
+    const query = `
+      SELECT * 
+      FROM symbol s 
+      WHERE s.\`status\` = 1 
+        AND s.security_type = "OS"
+    `;
+
+    try {
+      const results = await this.symbolRepository.query(query);
+
+      if (!results || results.length === 0) {
+        return [];
+      }
+
+      // Map the results to DTO format
+      return results.map((row: any) => ({
+        symbol_id: row.symbol_id?.toString() || row.symbol_id,
+        symbol: row.symbol,
+        name: row.name,
+      }));
+    } catch (error) {
+      console.error('Error fetching listed scripts:', error);
+      throw new NotFoundException('Failed to fetch listed scripts');
     }
   }
 }
