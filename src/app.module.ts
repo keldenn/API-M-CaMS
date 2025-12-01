@@ -13,7 +13,7 @@ import { MarketDataModule } from './market-data/market-data.module';
 import { CorporateActionsModule } from './corporate-actions/corporate-actions.module';
 import { RegisterModule } from './register/register.module';
 import { CdCodeModule } from './cd-code/cd-code.module';
-import { getDatabaseConfig, getFinancialDatabaseConfig } from './config/database.config';
+import { getDatabaseConfig, getFinancialDatabaseConfig, getCms22DatabaseConfig } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 
 @Module({
@@ -30,6 +30,11 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     TypeOrmModule.forRootAsync({
       name: 'financial',
       useFactory: getFinancialDatabaseConfig,
+      inject: [ConfigService],
+    }),
+    TypeOrmModule.forRootAsync({
+      name: 'cms22',
+      useFactory: getCms22DatabaseConfig,
       inject: [ConfigService],
     }),
     AuthModule,
