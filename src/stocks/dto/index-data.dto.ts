@@ -4,7 +4,7 @@ export class IndexDataDto {
   @ApiProperty({
     description: 'Sector type or BSI (Bhutan Stock Index)',
     example: 'BSI',
-    type: 'string'
+    type: 'string',
   })
   sector_type: string;
 
@@ -12,7 +12,7 @@ export class IndexDataDto {
     description: 'Current index value',
     example: 1431.48,
     type: 'number',
-    format: 'float'
+    format: 'float',
   })
   current_index: number;
 
@@ -20,7 +20,7 @@ export class IndexDataDto {
     description: 'Point change from previous value',
     example: -5.29,
     type: 'number',
-    format: 'float'
+    format: 'float',
   })
   ptChange: number;
 }

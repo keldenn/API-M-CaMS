@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketPriceHistory } from '../entities/market-price-history.entity';
@@ -76,11 +83,13 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
       ORDER BY symbol, date DESC;
     `;
 
-    this.logger.log('Fetching latest 5 days price movement data for all listed companies');
+    this.logger.log(
+      'Fetching latest 5 days price movement data for all listed companies',
+    );
     const results = await this.marketPriceHistoryRepository.query(query);
-    
+
     this.logger.log(`Query returned ${results.length} records`);
-    
+
     const l5PriceData = results.map((row) => ({
       symbol: row.symbol,
       price: parseFloat(row.price),
@@ -89,11 +98,13 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
 
     // Log sample data for debugging
     if (l5PriceData.length > 0) {
-      this.logger.log(`Sample data: First record - Symbol: ${l5PriceData[0].symbol}, Price: ${l5PriceData[0].price}, Date: ${l5PriceData[0].date}`);
+      this.logger.log(
+        `Sample data: First record - Symbol: ${l5PriceData[0].symbol}, Price: ${l5PriceData[0].price}, Date: ${l5PriceData[0].date}`,
+      );
     } else {
       this.logger.warn('No L5price data found');
     }
-    
+
     return l5PriceData;
   }
 
@@ -105,12 +116,14 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
           const currentL5PriceData = await this.getL5PriceData();
 
           // Check if L5price data has changed
-          if (this.hasL5PriceDataChanged(this.lastL5PriceData, currentL5PriceData)) {
+          if (
+            this.hasL5PriceDataChanged(this.lastL5PriceData, currentL5PriceData)
+          ) {
             this.logger.log('L5price data changes detected');
-            
+
             // Broadcast update to all connected clients
             this.l5PriceGateway.broadcastL5PriceUpdate(currentL5PriceData);
-            
+
             // Update last known L5price data
             this.lastL5PriceData = currentL5PriceData;
           }
@@ -120,12 +133,14 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
       }
     }, this.CHECK_INTERVAL);
 
-    this.logger.log(`Started L5price monitoring (interval: ${this.CHECK_INTERVAL}ms)`);
+    this.logger.log(
+      `Started L5price monitoring (interval: ${this.CHECK_INTERVAL}ms)`,
+    );
   }
 
   private hasL5PriceDataChanged(
     lastData: L5PriceDto[],
-    currentData: L5PriceDto[]
+    currentData: L5PriceDto[],
   ): boolean {
     if (!lastData || lastData.length !== currentData.length) {
       return true;
@@ -135,10 +150,12 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
     for (let i = 0; i < currentData.length; i++) {
       const last = lastData[i];
       const current = currentData[i];
-      
-      if (last.symbol !== current.symbol ||
-          last.price !== current.price || 
-          last.date.getTime() !== current.date.getTime()) {
+
+      if (
+        last.symbol !== current.symbol ||
+        last.price !== current.price ||
+        last.date.getTime() !== current.date.getTime()
+      ) {
         return true;
       }
     }
@@ -151,12 +168,14 @@ export class L5PriceService implements OnModuleInit, OnModuleDestroy {
     try {
       const currentL5PriceData = await this.getL5PriceData();
 
-      if (this.hasL5PriceDataChanged(this.lastL5PriceData, currentL5PriceData)) {
+      if (
+        this.hasL5PriceDataChanged(this.lastL5PriceData, currentL5PriceData)
+      ) {
         this.logger.log('Manual L5price check - changes detected');
-        
+
         // Broadcast update to all connected clients
         this.l5PriceGateway.broadcastL5PriceUpdate(currentL5PriceData);
-        
+
         // Update last known L5price data
         this.lastL5PriceData = currentL5PriceData;
       }

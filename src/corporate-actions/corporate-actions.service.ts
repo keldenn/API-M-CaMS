@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CorporateActions } from '../entities/corporate-actions.entity';
@@ -23,7 +27,9 @@ export class CorporateActionsService {
     private symbolRepository: Repository<Symbol>,
   ) {}
 
-  async getCorporateActionsByScript(script: string): Promise<CorporateActionsResponseDto[]> {
+  async getCorporateActionsByScript(
+    script: string,
+  ): Promise<CorporateActionsResponseDto[]> {
     if (!script || script.trim() === '') {
       throw new BadRequestException('Script parameter is required');
     }
@@ -37,26 +43,35 @@ export class CorporateActionsService {
     `;
 
     try {
-      const results = await this.corporateActionsRepository.query(query, [script]);
+      const results = await this.corporateActionsRepository.query(query, [
+        script,
+      ]);
 
       if (!results || results.length === 0) {
-        throw new NotFoundException(`No corporate actions found for script: ${script}`);
+        throw new NotFoundException(
+          `No corporate actions found for script: ${script}`,
+        );
       }
 
-       // Map the results to DTO format
-       return results.map((row: any) => ({
-         corporate_action: row.corporate_action,
-         amount: row.amount?.toString() || row.amount,
-         remarks: row.remarks || '',
-         year: row.year?.toString() || row.year,
-       }));
+      // Map the results to DTO format
+      return results.map((row: any) => ({
+        corporate_action: row.corporate_action,
+        amount: row.amount?.toString() || row.amount,
+        remarks: row.remarks || '',
+        year: row.year?.toString() || row.year,
+      }));
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      
+
       console.error('Error fetching corporate actions:', error);
-      throw new NotFoundException(`Failed to fetch corporate actions for script: ${script}`);
+      throw new NotFoundException(
+        `Failed to fetch corporate actions for script: ${script}`,
+      );
     }
   }
 
@@ -96,16 +111,23 @@ export class CorporateActionsService {
         created_at: row.created_at,
       }));
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      
+
       console.error('Error fetching AGM data:', error);
-      throw new NotFoundException(`Failed to fetch AGM data for script: ${script}`);
+      throw new NotFoundException(
+        `Failed to fetch AGM data for script: ${script}`,
+      );
     }
   }
 
-  async getSingleScriptBySymbol(script: string): Promise<SingleScriptResponseDto[]> {
+  async getSingleScriptBySymbol(
+    script: string,
+  ): Promise<SingleScriptResponseDto[]> {
     if (!script || script.trim() === '') {
       throw new BadRequestException('Script parameter is required');
     }
@@ -136,11 +158,16 @@ export class CorporateActionsService {
         website_link: row.website_link,
       }));
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       console.error('Error fetching single script:', error);
-      throw new NotFoundException(`Failed to fetch script for symbol: ${script}`);
+      throw new NotFoundException(
+        `Failed to fetch script for symbol: ${script}`,
+      );
     }
   }
 
@@ -172,4 +199,3 @@ export class CorporateActionsService {
     }
   }
 }
-

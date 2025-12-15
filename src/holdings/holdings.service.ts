@@ -36,12 +36,12 @@ export class HoldingsService {
       `;
 
       const result = await this.cdsHoldingRepository.query(query, [cdCode]);
-      
+
       if (!result || result.length === 0) {
         return [];
       }
-      
-      return result.map(row => ({
+
+      return result.map((row) => ({
         symbol: row.symbol,
         volume: parseFloat(row.volume) || 0,
         pending_out_vol: parseFloat(row.pending_out_vol) || 0,
@@ -75,9 +75,12 @@ export class HoldingsService {
         WHERE l.username = ?
       `;
 
-      const result = await this.bboFinanceRepository.query(query, [username, username]);
+      const result = await this.bboFinanceRepository.query(query, [
+        username,
+        username,
+      ]);
       const stats = result[0] || {};
-      
+
       return {
         tot: parseFloat(stats.tot) || 0,
         totbuy: parseFloat(stats.totbuy) || 0,

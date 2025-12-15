@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketIndex } from '../entities/market-index.entity';
@@ -97,7 +104,7 @@ export class IndexService implements OnModuleInit, OnModuleDestroy {
     `;
 
     const results = await this.marketIndexRepository.query(query);
-    
+
     return results.map((row) => ({
       sector_type: row.sector_type,
       current_index: parseFloat(row.current_index),
@@ -112,10 +119,12 @@ export class IndexService implements OnModuleInit, OnModuleDestroy {
         const changedIndexData = this.detectIndexChanges(currentIndexData);
 
         if (changedIndexData.length > 0) {
-          this.logger.log(`Index changes detected for ${changedIndexData.length} sectors`);
+          this.logger.log(
+            `Index changes detected for ${changedIndexData.length} sectors`,
+          );
           // Broadcast all index data (or just changed ones, depending on your needs)
           this.indexGateway.broadcastIndexUpdate(currentIndexData);
-          
+
           // Update last known index data
           currentIndexData.forEach((index) => {
             this.lastIndexData.set(index.sector_type, index.current_index);
@@ -126,7 +135,9 @@ export class IndexService implements OnModuleInit, OnModuleDestroy {
       }
     }, this.CHECK_INTERVAL);
 
-    this.logger.log(`Started index monitoring (interval: ${this.CHECK_INTERVAL}ms)`);
+    this.logger.log(
+      `Started index monitoring (interval: ${this.CHECK_INTERVAL}ms)`,
+    );
   }
 
   private detectIndexChanges(currentIndexData: IndexDataDto[]): IndexDataDto[] {

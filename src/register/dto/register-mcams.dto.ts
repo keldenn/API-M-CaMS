@@ -1,9 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, IsEmail, IsDateString, Matches, Length, IsOptional, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  IsEmail,
+  IsDateString,
+  Matches,
+  Length,
+  IsOptional,
+  IsNumber,
+} from 'class-validator';
 
 export class RegisterMcamsDto {
   // CD Code registration fields
-  @ApiProperty({ description: 'Account type (e.g., "I" for Individual)', example: 'I', required: false })
+  @ApiProperty({
+    description: 'Account type (e.g., "I" for Individual)',
+    example: 'I',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   acc_type?: string;
@@ -13,7 +27,10 @@ export class RegisterMcamsDto {
   @IsNotEmpty()
   f_name: string;
 
-  @ApiProperty({ description: 'Citizen ID (must be 11 digits)', example: '12345678901' })
+  @ApiProperty({
+    description: 'Citizen ID (must be 11 digits)',
+    example: '12345678901',
+  })
   @IsString()
   @IsNotEmpty()
   @Length(11, 11, { message: 'ID must be exactly 11 digits' })
@@ -55,7 +72,12 @@ export class RegisterMcamsDto {
   @IsNotEmpty()
   bank_account: string;
 
-  @ApiProperty({ description: 'Broker commission ID (will be fetched from bbo_commission if not provided)', example: 1, required: false })
+  @ApiProperty({
+    description:
+      'Broker commission ID (will be fetched from bbo_commission if not provided)',
+    example: 1,
+    required: false,
+  })
   @IsOptional()
   @IsInt()
   bro_comm_id?: number;
@@ -142,4 +164,3 @@ export class RegisterMcamsDto {
   @IsNotEmpty()
   password: string;
 }
-

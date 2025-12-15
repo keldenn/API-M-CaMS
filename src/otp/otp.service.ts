@@ -72,7 +72,7 @@ export class OtpService {
           const failedMethods: string[] = [];
           if (phone_no && !smsSuccess) failedMethods.push('SMS');
           if (email && !emailSuccess) failedMethods.push('email');
-          
+
           return {
             error: true,
             message: `OTP was generated but delivery failed for ${failedMethods.join(' and ')}`,
@@ -112,7 +112,8 @@ export class OtpService {
       if (!latest) {
         return {
           error: true,
-          message: 'No OTP found for this phone number or it has already been used',
+          message:
+            'No OTP found for this phone number or it has already been used',
           data: '',
         };
       }
@@ -125,7 +126,7 @@ export class OtpService {
       if (now > expirationTime) {
         // Mark expired OTP as used to prevent reuse
         await this.smsOtpLogRepository.update({ id: latest.id }, { status: 1 });
-        
+
         return {
           error: true,
           message: 'OTP expired',
@@ -165,7 +166,7 @@ export class OtpService {
       // Hardcoded SMS configuration (no environment variables needed)
       const token = 'rsebsms@2021#Dec!';
       const url = 'https://cms.rsebl.org.bt/api/v1/rseb_sms_gateway.php';
-      
+
       const formData = new URLSearchParams();
       formData.append('phoneNo', phoneNo);
       formData.append('message', message);
@@ -201,7 +202,8 @@ export class OtpService {
       });
 
       const mailOptions = {
-        from: this.configService.get<string>('SMTP_FROM') || 'noreply@example.com',
+        from:
+          this.configService.get<string>('SMTP_FROM') || 'noreply@example.com',
         to: email,
         subject: 'Your OTP Code',
         text: message,

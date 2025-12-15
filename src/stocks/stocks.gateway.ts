@@ -43,11 +43,11 @@ export class StocksGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     this.logger.log(`Client ${client.id} subscribing to stock prices`);
-    
+
     // Send initial data
     const stockPrices = await this.stocksService.getAllStockPrices();
     client.emit('stockPrices', stockPrices);
-    
+
     return { status: 'subscribed' };
   }
 
@@ -62,4 +62,3 @@ export class StocksGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit('priceUpdate', stockPrices);
   }
 }
-

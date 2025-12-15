@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Symbol } from '../entities/symbol.entity';
@@ -41,7 +45,7 @@ export class MarketDataService {
 
     const symbol_id = symbolData.symbol_id;
     const paid_up_shares = symbolData.paid_up_shares;
-    
+
     // Query 2: Get Latest Market Price
     const marketPriceData = await this.marketPriceHistoryRepository
       .createQueryBuilder('mph')
@@ -50,7 +54,7 @@ export class MarketDataService {
       .orderBy('mph.date', 'DESC')
       .getOne();
 
-    const marketPrice = marketPriceData?.price || 0.00;
+    const marketPrice = marketPriceData?.price || 0.0;
 
     // Query 3: Calculate Market Capitalization (computed in code)
     const marketCap = paid_up_shares * marketPrice;
@@ -60,7 +64,7 @@ export class MarketDataService {
       .createQueryBuilder('eo')
       .select([
         'MAX(eo.order_exe_price) as fiftyTwoWeekHigh',
-        'MIN(eo.order_exe_price) as fiftyTwoWeekLow'
+        'MIN(eo.order_exe_price) as fiftyTwoWeekLow',
       ])
       .where('eo.symbol_id = :symbol_id', { symbol_id })
       .andWhere('eo.order_date >= DATE_SUB(NOW(), INTERVAL 52 WEEK)')
@@ -72,7 +76,7 @@ export class MarketDataService {
       .select([
         'MAX(eo.order_exe_price) as weekHigh',
         'MIN(eo.order_exe_price) as weekLow',
-        'SUM(eo.lot_size_execute) as tradedVolume'
+        'SUM(eo.lot_size_execute) as tradedVolume',
       ])
       .where('eo.symbol_id = :symbol_id', { symbol_id })
       .andWhere("eo.side = 'B'")
@@ -105,7 +109,7 @@ export class MarketDataService {
           AND WEEK(eo3.order_date, 1) = WEEK(NOW(), 1) 
           AND YEAR(eo3.order_date) = YEAR(NOW())
           ORDER BY eo3.order_date DESC 
-          LIMIT 1) as closePrice`
+          LIMIT 1) as closePrice`,
       ])
       .where('eo.symbol_id = :symbol_id', { symbol_id })
       .andWhere('WEEK(eo.order_date, 1) = WEEK(NOW(), 1)')
@@ -134,12 +138,11 @@ export class MarketDataService {
           'em.dividend_yield',
           'em.beta',
           'em.eps',
-          'em.pe_ratio'
+          'em.pe_ratio',
         ])
         .where('em.script = :ticker', { ticker })
         .orderBy('em.year', 'DESC')
         .getRawOne();
-      
     } catch (error) {
       console.error('Error fetching financial metrics:', error);
       metricData = null;
@@ -149,11 +152,22 @@ export class MarketDataService {
     const data: MarketDataResponseDto = {
       ticker: metricData?.em_script || metricData?.script || ticker,
       name: metricData?.script_name || 'N/A',
-      dividendYield: metricData?.em_dividend_yield?.toString() || metricData?.dividend_yield?.toString() || '0.00',
-      beta: metricData?.em_beta?.toString() || metricData?.beta?.toString() || '0.00',
-      trailingEps: metricData?.em_eps?.toString() || metricData?.eps?.toString() || '0.00',
-      pe_ratio: metricData?.em_pe_ratio?.toString() || metricData?.pe_ratio?.toString() || '0.00',
-      fiftyTwoWeekHigh: fiftyTwoWeekData?.fiftyTwoWeekHigh?.toString() || '0.00',
+      dividendYield:
+        metricData?.em_dividend_yield?.toString() ||
+        metricData?.dividend_yield?.toString() ||
+        '0.00',
+      beta:
+        metricData?.em_beta?.toString() ||
+        metricData?.beta?.toString() ||
+        '0.00',
+      trailingEps:
+        metricData?.em_eps?.toString() || metricData?.eps?.toString() || '0.00',
+      pe_ratio:
+        metricData?.em_pe_ratio?.toString() ||
+        metricData?.pe_ratio?.toString() ||
+        '0.00',
+      fiftyTwoWeekHigh:
+        fiftyTwoWeekData?.fiftyTwoWeekHigh?.toString() || '0.00',
       fiftyTwoWeekLow: fiftyTwoWeekData?.fiftyTwoWeekLow?.toString() || '0.00',
       open: weekPriceData?.openPrice?.toString() || '0.00',
       close: weekPriceData?.closePrice?.toString() || '0.00',
@@ -162,7 +176,8 @@ export class MarketDataService {
       marketPrice: marketPrice.toString(),
       marketCap: marketCap,
       volume: parseInt(volumeData?.volume) || 0,
-      averageVolume: Math.round((parseFloat(avgVolumeData?.avgVolume) || 0) * 100) / 100
+      averageVolume:
+        Math.round((parseFloat(avgVolumeData?.avgVolume) || 0) * 100) / 100,
     };
 
     return data;

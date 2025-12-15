@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Symbol } from './symbol.entity';
 
 @Entity('market_price')
@@ -22,4 +28,3 @@ export class MarketPrice {
   @JoinColumn({ name: 'symbol_id' })
   symbol: Symbol;
 }
-

@@ -9,10 +9,7 @@ import { AuthModule } from '../auth/auth.module';
 import ndiConfig from './config/ndi.config';
 
 @Module({
-  imports: [
-    ConfigModule.forFeature(ndiConfig),
-    AuthModule,
-  ],
+  imports: [ConfigModule.forFeature(ndiConfig), AuthModule],
   controllers: [NdiController],
   providers: [
     NdiAuthService,

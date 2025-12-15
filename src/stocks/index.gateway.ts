@@ -43,11 +43,11 @@ export class IndexGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     this.logger.log(`Index client ${client.id} subscribing to index data`);
-    
+
     // Send initial data
     const indexData = await this.indexService.getAllIndexData();
     client.emit('indexData', indexData);
-    
+
     return { status: 'subscribed' };
   }
 

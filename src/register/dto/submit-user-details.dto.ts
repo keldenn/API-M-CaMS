@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+} from 'class-validator';
 
 export class SubmitUserDetailsDto {
   @ApiProperty({ description: 'CID Number', example: '11234567890' })
@@ -17,7 +23,11 @@ export class SubmitUserDetailsDto {
   @IsNotEmpty()
   broker: string;
 
-  @ApiProperty({ description: 'CD Code', example: 'B202500001', required: false })
+  @ApiProperty({
+    description: 'CD Code',
+    example: 'B202500001',
+    required: false,
+  })
   @IsString()
   @IsOptional()
   cd_code?: string;
@@ -52,4 +62,3 @@ export class SubmitUserDetailsDto {
   @IsOptional()
   amount?: number;
 }
-

@@ -23,7 +23,13 @@ export class ClientAccount {
   @Column({ name: 'ID', type: 'varchar', length: 15, nullable: true })
   ID: string | null;
 
-  @Column({ name: 'DzongkhagID', type: 'int', width: 4, nullable: true, default: 14 })
+  @Column({
+    name: 'DzongkhagID',
+    type: 'int',
+    width: 4,
+    nullable: true,
+    default: 14,
+  })
   DzongkhagID: number | null;
 
   @Column({ name: 'gewog_id', type: 'int', width: 4, nullable: true })
@@ -47,22 +53,44 @@ export class ClientAccount {
   @Column({ name: 'bank_account', type: 'varchar', length: 50, nullable: true })
   bank_account: string | null;
 
-  @Column({ name: 'bro_comm_id', type: 'bigint', width: 10, nullable: true, default: 0 })
+  @Column({
+    name: 'bro_comm_id',
+    type: 'bigint',
+    width: 10,
+    nullable: true,
+    default: 0,
+  })
   bro_comm_id: number | null;
 
   @Column({ name: 'address', type: 'char', length: 200, nullable: true })
   address: string | null;
 
-  @Column({ name: 'institution_id', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'institution_id',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   institution_id: string | null;
 
   @Column({ name: 'title', type: 'varchar', length: 100, nullable: true })
   title: string | null;
 
-  @Column({ name: 'occupation', type: 'varchar', length: 15, nullable: true, default: '101' })
+  @Column({
+    name: 'occupation',
+    type: 'varchar',
+    length: 15,
+    nullable: true,
+    default: '101',
+  })
   occupation: string | null;
 
-  @Column({ name: 'bank_account_type', type: 'varchar', length: 15, nullable: true })
+  @Column({
+    name: 'bank_account_type',
+    type: 'varchar',
+    length: 15,
+    nullable: true,
+  })
   bank_account_type: string | null;
 
   @Column({ name: 'license_no', type: 'varchar', length: 50, nullable: true })
@@ -74,25 +102,49 @@ export class ClientAccount {
   @Column({ name: 'dob', type: 'date', nullable: true })
   dob: Date | null;
 
-  @Column({ name: 'oversea_phone_no', type: 'bigint', width: 20, nullable: true })
+  @Column({
+    name: 'oversea_phone_no',
+    type: 'bigint',
+    width: 20,
+    nullable: true,
+  })
   oversea_phone_no: number | null;
 
-  @Column({ name: 'permanent_address', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'permanent_address',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   permanent_address: string | null;
 
-  @Column({ name: 'guardian_name', type: 'varchar', length: 200, nullable: true })
+  @Column({
+    name: 'guardian_name',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
   guardian_name: string | null;
 
   @Column({ name: 'gender', type: 'varchar', length: 200, nullable: true })
   gender: string | null;
 
-  @Column({ name: 'marital_status', type: 'varchar', length: 200, nullable: true })
+  @Column({
+    name: 'marital_status',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
   marital_status: string | null;
 
   @Column({ name: 'user_name', type: 'varchar', length: 50, nullable: true })
   user_name: string | null;
 
-  @Column({ name: 'ca_date', type: 'datetime', nullable: true, default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    name: 'ca_date',
+    type: 'datetime',
+    nullable: true,
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   ca_date: Date | null;
 }
-

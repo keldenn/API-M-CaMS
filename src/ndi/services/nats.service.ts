@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { connect, NatsConnection, StringCodec, Subscription } from 'nats';
 import { nkeyAuthenticator } from 'nats';
@@ -14,8 +19,14 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
   private readonly natsSeed: string;
 
   constructor(private configService: ConfigService) {
-    this.natsUrl = this.configService.get<string>('ndi.natsUrl', 'nats://app.rsebl.org.bt:4222');
-    this.natsSeed = this.configService.get<string>('ndi.natsSeed', 'SUAESNRWPPICEM4PF5MWARPD46HZ3KJIVK7LBEUIFE6A4FUANTNI7HG6VE');
+    this.natsUrl = this.configService.get<string>(
+      'ndi.natsUrl',
+      'nats://app.rsebl.org.bt:4222',
+    );
+    this.natsSeed = this.configService.get<string>(
+      'ndi.natsSeed',
+      'SUAESNRWPPICEM4PF5MWARPD46HZ3KJIVK7LBEUIFE6A4FUANTNI7HG6VE',
+    );
   }
 
   async onModuleInit() {
@@ -23,7 +34,9 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
       await this.connect();
     } catch (error) {
       this.logger.error('Failed to connect to NATS:', error.message);
-      this.logger.warn('Application will continue without NATS connection. NATS features will not be available.');
+      this.logger.warn(
+        'Application will continue without NATS connection. NATS features will not be available.',
+      );
     }
   }
 
@@ -34,7 +47,7 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
   private async connect(): Promise<void> {
     try {
       const seed = new TextEncoder().encode(this.natsSeed);
-      
+
       this.nc = await connect({
         servers: this.natsUrl,
         authenticator: nkeyAuthenticator(seed),
@@ -84,7 +97,9 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
           for await (const msg of sub) {
             try {
               const messageData = this.sc.decode(msg.data);
-              this.logger.log(`Received message for thread ${threadId}: ${messageData}`);
+              this.logger.log(
+                `Received message for thread ${threadId}: ${messageData}`,
+              );
 
               // Parse the message as JSON
               const parsed: any = JSON.parse(messageData);
@@ -94,7 +109,9 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
 
               // Derive a normalized status string
               const rawStatus: string | undefined =
-                payload?.status || payload?.verification_result || parsed?.status;
+                payload?.status ||
+                payload?.verification_result ||
+                parsed?.status;
 
               const status = this.normalizeStatus(rawStatus);
 
@@ -110,15 +127,24 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
               // Call the callback function with normalized result
               callback(proofResult);
             } catch (parseError) {
-              this.logger.error(`Failed to parse message for thread ${threadId}:`, parseError.message);
+              this.logger.error(
+                `Failed to parse message for thread ${threadId}:`,
+                parseError.message,
+              );
             }
           }
         } catch (error) {
-          this.logger.error(`Error processing messages for thread ${threadId}:`, error.message);
+          this.logger.error(
+            `Error processing messages for thread ${threadId}:`,
+            error.message,
+          );
         }
       })();
     } catch (error) {
-      this.logger.error(`Failed to subscribe to thread ${threadId}:`, error.message);
+      this.logger.error(
+        `Failed to subscribe to thread ${threadId}:`,
+        error.message,
+      );
       throw error;
     }
   }
@@ -127,7 +153,12 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
     if (!raw) return 'pending';
     const v = String(raw).toLowerCase();
     // Map known NDI statuses
-    if (v.includes('validated') || v === 'verified' || v === 'accept' || v === 'accepted') {
+    if (
+      v.includes('validated') ||
+      v === 'verified' ||
+      v === 'accept' ||
+      v === 'accepted'
+    ) {
       return 'verified';
     }
     if (v.includes('reject') || v === 'declined') {
@@ -147,11 +178,13 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
       // Flatten revealed attributes into a simple key/value map
       const flattened: Record<string, any> = {};
       try {
-        for (const [attrName, values] of Object.entries<any>(rp.revealed_attrs)) {
+        for (const [attrName, values] of Object.entries<any>(
+          rp.revealed_attrs,
+        )) {
           // values is often an array of { value, identifier_index }
           const first = Array.isArray(values) ? values[0] : values;
           const value = first?.value ?? first;
-          
+
           // Map to the exact field names you want
           if (attrName === 'ID Number') {
             flattened.idNumber = value;
@@ -164,10 +197,10 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
             flattened[attrName] = value;
           }
         }
-        
+
         // Add verification timestamp
         flattened.verificationTimestamp = new Date().toISOString();
-        
+
         return flattened;
       } catch (_) {
         // fallback to raw payload
@@ -196,7 +229,10 @@ export class NatsService implements OnModuleInit, OnModuleDestroy {
       this.nc.publish(subject, this.sc.encode(message));
       this.logger.log(`Published message to subject: ${subject}`);
     } catch (error) {
-      this.logger.error(`Failed to publish message to subject ${subject}:`, error.message);
+      this.logger.error(
+        `Failed to publish message to subject ${subject}:`,
+        error.message,
+      );
       throw error;
     }
   }

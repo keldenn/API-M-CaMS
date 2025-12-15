@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Orders WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .connection-section {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .connection-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .status-bar {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #dc3545;
+        }
+
+        .status-dot.connecting {
+            background: #ffc107;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .data-summary {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .summary-card h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: 700;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .data-section {
+            padding: 30px;
+        }
+
+        .data-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .data-header h2 {
+            color: #333;
+            font-size: 1.8rem;
+        }
+
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .orders-table thead {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+
+        .orders-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .orders-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f1f3f4;
+            font-size: 14px;
+        }
+
+        .orders-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .orders-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .side-buy {
+            color: #28a745;
+            font-weight: 700;
+        }
+
+        .side-sell {
+            color: #dc3545;
+            font-weight: 700;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .empty-state p {
+            font-size: 1rem;
+            color: #666;
+        }
+
+        .log-section {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .log-header h3 {
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 0;
+        }
+
+        .log-entry.info {
+            color: #4ec9b0;
+        }
+
+        .log-entry.success {
+            color: #4ec9b0;
+        }
+
+        .log-entry.error {
+            color: #f48771;
+        }
+
+        .log-entry.warning {
+            color: #dcdcaa;
+        }
+
+        .log-timestamp {
+            color: #808080;
+            margin-right: 10px;
+        }
+
+        .clear-log-btn {
+            background: #6c757d;
+            color: white;
+            padding: 5px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .clear-log-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Pending Orders WebSocket</h1>
+            <p>Real-time pending orders monitoring for users</p>
+        </div>
+
+        <div class="connection-section">
+            <div class="connection-form">
+                <div class="form-group">
+                    <label for="serverUrl">Server URL</label>
+                    <input type="text" id="serverUrl" class="form-input" value="http://localhost:3000" placeholder="http://localhost:3000">
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" class="form-input" value="" placeholder="Enter username">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                    <button id="connectBtn" class="btn btn-primary" style="width: 100%;">Connect</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status disconnected" id="status">
+                <span class="status-dot disconnected" id="statusDot"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <div class="controls">
+                <button id="subscribeBtn" class="btn btn-success" disabled>Subscribe</button>
+                <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <div class="data-summary" id="summarySection" style="display: none;">
+            <div class="summary-card">
+                <h3>📊 Summary</h3>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Orders:</span>
+                        <span class="stat-value" id="totalOrders">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Buy Orders:</span>
+                        <span class="stat-value" id="buyOrders" style="color: #28a745;">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Sell Orders:</span>
+                        <span class="stat-value" id="sellOrders" style="color: #dc3545;">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Last Update:</span>
+                        <span class="stat-value" id="lastUpdate">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <div class="data-header">
+                <h2>📋 Pending Orders</h2>
+            </div>
+            <div id="ordersContainer">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <h3>No Data</h3>
+                    <p>Connect and subscribe to see pending orders</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-section">
+            <div class="log-header">
+                <h3>📝 Event Log</h3>
+                <button class="clear-log-btn" onclick="clearLog()">Clear Log</button>
+            </div>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentUsername = '';
+        let isSubscribed = false;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+        const RECONNECT_DELAY = 3000; // 3 seconds
+
+        const serverUrlInput = document.getElementById('serverUrl');
+        const usernameInput = document.getElementById('username');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+        const statusDiv = document.getElementById('status');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const ordersContainer = document.getElementById('ordersContainer');
+        const summarySection = document.getElementById('summarySection');
+
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+        }
+
+        function updateStatus(status, text) {
+            statusDiv.className = `status ${status}`;
+            statusDot.className = `status-dot ${status}`;
+            statusText.textContent = text;
+        }
+
+        function updateSummary(data) {
+            if (!data || !data.data) return;
+
+            const orders = data.data;
+            const buyOrders = orders.filter(o => o.side === 'B').length;
+            const sellOrders = orders.filter(o => o.side === 'S').length;
+
+            document.getElementById('totalOrders').textContent = data.count || orders.length;
+            document.getElementById('buyOrders').textContent = buyOrders;
+            document.getElementById('sellOrders').textContent = sellOrders;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            summarySection.style.display = 'block';
+        }
+
+        function renderOrders(data) {
+            if (!data || !data.data || data.data.length === 0) {
+                ordersContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <h3>No Pending Orders</h3>
+                        <p>No pending orders found for this username</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const orders = data.data;
+            let html = `
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Volume</th>
+                            <th>Price</th>
+                            <th>Commission</th>
+                            <th>CD Code</th>
+                            <th>Participant</th>
+                            <th>Broker</th>
+                            <th>Order Date</th>
+                            <th>Flag ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            orders.forEach(order => {
+                const volume = order.side === 'B' ? order.buy_vol : order.sell_vol;
+                const sideClass = order.side === 'B' ? 'side-buy' : 'side-sell';
+                const sideText = order.side === 'B' ? 'BUY' : 'SELL';
+                
+                html += `
+                    <tr>
+                        <td>${order.order_id}</td>
+                        <td><strong>${order.symbol}</strong></td>
+                        <td class="${sideClass}">${sideText}</td>
+                        <td>${volume || '0'}</td>
+                        <td>Nu. ${parseFloat(order.price || 0).toFixed(2)}</td>
+                        <td>Nu. ${parseFloat(order.commis_amt || 0).toFixed(2)}</td>
+                        <td>${order.cd_code}</td>
+                        <td>${order.participant_code}</td>
+                        <td>${order.member_broker}</td>
+                        <td>${order.order_date || '-'}</td>
+                        <td>${order.flag_id}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            ordersContainer.innerHTML = html;
+        }
+
+        function connect() {
+            const serverUrl = serverUrlInput.value.trim();
+            const username = usernameInput.value.trim();
+
+            if (!serverUrl) {
+                alert('Please enter server URL');
+                return;
+            }
+
+            if (!username) {
+                alert('Please enter username');
+                return;
+            }
+
+            currentUsername = username;
+            updateStatus('connecting', 'Connecting...');
+            log(`Connecting to ${serverUrl}/pendingOrders...`, 'info');
+
+            try {
+                socket = io(`${serverUrl}/pendingOrders`, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+                });
+
+                socket.on('connect', () => {
+                    reconnectAttempts = 0;
+                    updateStatus('connected', 'Connected');
+                    log('✅ Connected to server', 'success');
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    subscribeBtn.disabled = false;
+                    serverUrlInput.disabled = true;
+                    usernameInput.disabled = true;
+                    
+                    // Auto-subscribe if we were previously subscribed
+                    if (isSubscribed && currentUsername) {
+                        log(`🔄 Auto-re-subscribing to pending orders for username: ${currentUsername}`, 'info');
+                        socket.emit('subscribe', { username: currentUsername });
+                    }
+                });
+
+                socket.on('disconnect', (reason) => {
+                    updateStatus('disconnected', 'Disconnected');
+                    log(`❌ Disconnected from server: ${reason}`, 'error');
+                    
+                    // Only disable controls if it's a manual disconnect
+                    if (reason === 'io client disconnect') {
+                        connectBtn.disabled = false;
+                        disconnectBtn.disabled = true;
+                        subscribeBtn.disabled = true;
+                        serverUrlInput.disabled = false;
+                        usernameInput.disabled = false;
+                        isSubscribed = false;
+                    } else {
+                        // Automatic reconnection will happen
+                        log('🔄 Attempting to reconnect...', 'warning');
+                    }
+                });
+
+                socket.on('reconnect_attempt', (attemptNumber) => {
+                    reconnectAttempts = attemptNumber;
+                    updateStatus('connecting', `Reconnecting... (${attemptNumber}/${MAX_RECONNECT_ATTEMPTS})`);
+                    log(`🔄 Reconnection attempt ${attemptNumber}/${MAX_RECONNECT_ATTEMPTS}`, 'warning');
+                });
+
+                socket.on('reconnect_failed', () => {
+                    updateStatus('disconnected', 'Reconnection Failed');
+                    log('❌ Failed to reconnect after maximum attempts', 'error');
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    subscribeBtn.disabled = true;
+                    serverUrlInput.disabled = false;
+                    usernameInput.disabled = false;
+                    isSubscribed = false;
+                });
+
+                socket.on('connect_error', (error) => {
+                    updateStatus('disconnected', 'Connection Failed');
+                    log(`❌ Connection error: ${error.message}`, 'error');
+                    connectBtn.disabled = false;
+                });
+
+                socket.on('pendingOrdersData', (data) => {
+                    log(`📋 Received pending orders data (${data.count || data.data?.length || 0} orders)`, 'success');
+                    renderOrders(data);
+                    updateSummary(data);
+                    isSubscribed = true;
+                });
+
+                socket.on('pendingOrdersUpdate', (data) => {
+                    log(`🔄 Received pending orders update (${data.count || data.data?.length || 0} orders)`, 'info');
+                    renderOrders(data);
+                    updateSummary(data);
+                });
+
+                socket.on('error', (data) => {
+                    log(`❌ Error: ${data.message || JSON.stringify(data)}`, 'error');
+                    alert(`Error: ${data.message || 'Unknown error'}`);
+                });
+
+            } catch (error) {
+                log(`❌ Failed to connect: ${error.message}`, 'error');
+                updateStatus('disconnected', 'Connection Failed');
+            }
+        }
+
+        function disconnect() {
+            if (socket) {
+                isSubscribed = false;
+                socket.disconnect();
+                socket = null;
+                log('🔌 Manually disconnected from server', 'warning');
+                updateStatus('disconnected', 'Disconnected');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                subscribeBtn.disabled = true;
+                serverUrlInput.disabled = false;
+                usernameInput.disabled = false;
+            }
+        }
+
+        function subscribe() {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                alert('Please enter username');
+                return;
+            }
+
+            if (socket && socket.connected) {
+                currentUsername = username;
+                isSubscribed = true;
+                log(`📡 Subscribing to pending orders for username: ${username}`, 'info');
+                socket.emit('subscribe', { username: username });
+            } else {
+                alert('Not connected. Please connect first.');
+            }
+        }
+
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        subscribeBtn.addEventListener('click', subscribe);
+
+        // Allow Enter key to connect
+        serverUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+
+        usernameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (socket && socket.connected) {
+                    subscribe();
+                } else {
+                    connect();
+                }
+            }
+        });
+
+        log('🚀 Pending Orders WebSocket Test Client Ready', 'success');
+        log('ℹ️ Auto-refresh enabled: Updates every 60 seconds', 'info');
+        log('ℹ️ Auto-reconnect enabled: Will re-subscribe on reconnect', 'info');
+    </script>
+</body>
+</html>
+

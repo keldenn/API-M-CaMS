@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsNumber, IsArray, IsObject, ValidateNested, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsArray,
+  IsObject,
+  ValidateNested,
+  IsOptional,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class NdiAuthRequestDto {

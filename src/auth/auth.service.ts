@@ -9,11 +9,23 @@ import { User } from '../entities/user.entity';
 import { LinkUser } from '../entities/linkuser.entity';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto, UserData } from './dto/login-response.dto';
-import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
-import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import {
+  RefreshTokenDto,
+  RefreshTokenResponseDto,
+} from './dto/refresh-token.dto';
+import {
+  ChangePasswordDto,
+  ChangePasswordResponseDto,
+} from './dto/change-password.dto';
 import { ChangePinDto, ChangePinResponseDto } from './dto/change-pin.dto';
-import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
-import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
+import {
+  GetClientDetailsDto,
+  ClientDetailsResponseDto,
+} from './dto/forgot-password.dto';
+import {
+  ForgotChangePasswordDto,
+  ForgotChangePasswordResponseDto,
+} from './dto/forgot-change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -32,7 +44,7 @@ export class AuthService {
       // Use the same password verification logic as in login (matching PHP exactly)
       const password_db = user.password;
       const isBcrypt = user.is_bcrypt;
-      
+
       let passwordVerified = false;
       if (isBcrypt) {
         // Use bcryptjs for PHP compatibility (same as PHP's password_verify)
@@ -40,9 +52,11 @@ export class AuthService {
         passwordVerified = bcryptjs.compareSync(password, password_db);
       } else {
         // MD5 comparison (same as PHP's md5($password) == $password_db)
-        passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
+        passwordVerified =
+          crypto.createHash('md5').update(password).digest('hex') ===
+          password_db;
       }
-      
+
       if (passwordVerified) {
         const { password: _, ...result } = user;
         return result;
@@ -57,7 +71,7 @@ export class AuthService {
     try {
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
-      
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -80,16 +94,18 @@ export class AuthService {
       // Verify password
       const password_db = userWithLinkData.password;
       const isBcrypt = userWithLinkData.is_bcrypt;
-      
+
       let passwordVerified = false;
-      
+
       if (isBcrypt) {
         // Use bcryptjs for PHP compatibility
         const bcryptjs = require('bcryptjs');
         passwordVerified = bcryptjs.compareSync(password, password_db);
       } else {
         // MD5 comparison for legacy passwords
-        passwordVerified = (crypto.createHash('md5').update(password).digest('hex') === password_db);
+        passwordVerified =
+          crypto.createHash('md5').update(password).digest('hex') ===
+          password_db;
       }
 
       if (!passwordVerified) {
@@ -102,7 +118,7 @@ export class AuthService {
 
       // Check user status - only allow login if status is 1 (active)
       const userStatus = parseInt(userWithLinkData.status);
-      
+
       if (userStatus !== 1) {
         return {
           error: true,
@@ -115,8 +131,8 @@ export class AuthService {
       if (!isBcrypt) {
         const hashedPassword = await bcrypt.hash(password, 12);
         await this.userRepository.query(
-          "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
-          [hashedPassword, username]
+          'UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?',
+          [hashedPassword, username],
         );
       }
 
@@ -137,7 +153,8 @@ export class AuthService {
         type: 'refresh',
       };
       const refresh_token = this.jwtService.sign(refreshPayload, {
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '2d',
+        expiresIn:
+          this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '2d',
       });
 
       // Prepare user data
@@ -148,7 +165,9 @@ export class AuthService {
         return `${day}/${month}/${year}`;
       };
 
-      const createdDate = userWithLinkData.created_at ? new Date(userWithLinkData.created_at) : new Date();
+      const createdDate = userWithLinkData.created_at
+        ? new Date(userWithLinkData.created_at)
+        : new Date();
       const expiredDate = new Date(createdDate);
       expiredDate.setFullYear(expiredDate.getFullYear() + 1);
 
@@ -173,7 +192,6 @@ export class AuthService {
         access_token,
         refresh_token,
       };
-
     } catch (error) {
       console.error('Login error:', error);
       return {
@@ -184,7 +202,9 @@ export class AuthService {
     }
   }
 
-  async refreshToken(refreshTokenDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+  async refreshToken(
+    refreshTokenDto: RefreshTokenDto,
+  ): Promise<RefreshTokenResponseDto> {
     const { refresh_token } = refreshTokenDto;
 
     try {
@@ -208,8 +228,10 @@ export class AuthService {
       }
 
       // Get user data to ensure user still exists and is active
-      const userWithLinkData = await this.findUserWithLinkData(decoded.username);
-      
+      const userWithLinkData = await this.findUserWithLinkData(
+        decoded.username,
+      );
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -239,7 +261,6 @@ export class AuthService {
         message: 'Token refreshed successfully',
         access_token,
       };
-
     } catch (error) {
       console.error('Refresh token error:', error);
       return {
@@ -249,7 +270,10 @@ export class AuthService {
     }
   }
 
-  async changePassword(username: string, changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
+  async changePassword(
+    username: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<ChangePasswordResponseDto> {
     const { currentPassword, newPassword, confirmPassword } = changePasswordDto;
 
     try {
@@ -271,7 +295,7 @@ export class AuthService {
 
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
-      
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -292,16 +316,21 @@ export class AuthService {
       // Verify current password
       const password_db = userWithLinkData.password;
       const isBcrypt = userWithLinkData.is_bcrypt;
-      
+
       let currentPasswordVerified = false;
-      
+
       if (isBcrypt) {
         // Use bcryptjs for PHP compatibility
         const bcryptjs = require('bcryptjs');
-        currentPasswordVerified = bcryptjs.compareSync(currentPassword, password_db);
+        currentPasswordVerified = bcryptjs.compareSync(
+          currentPassword,
+          password_db,
+        );
       } else {
         // MD5 comparison for legacy passwords
-        currentPasswordVerified = (crypto.createHash('md5').update(currentPassword).digest('hex') === password_db);
+        currentPasswordVerified =
+          crypto.createHash('md5').update(currentPassword).digest('hex') ===
+          password_db;
       }
 
       if (!currentPasswordVerified) {
@@ -321,18 +350,17 @@ export class AuthService {
 
       // Hash the new password using bcrypt
       const hashedNewPassword = await bcrypt.hash(newPassword, 12);
-      
+
       // Update the password in database and set isPin to 1
       await this.userRepository.query(
-        "UPDATE users SET password = ?, is_bcrypt = 1, isPin = 1 WHERE username = ?",
-        [hashedNewPassword, username]
+        'UPDATE users SET password = ?, is_bcrypt = 1, isPin = 1 WHERE username = ?',
+        [hashedNewPassword, username],
       );
 
       return {
         error: false,
         message: 'Password changed successfully',
       };
-
     } catch (error) {
       console.error('Change password error:', error);
       return {
@@ -342,7 +370,10 @@ export class AuthService {
     }
   }
 
-  async changePin(username: string, changePinDto: ChangePinDto): Promise<ChangePinResponseDto> {
+  async changePin(
+    username: string,
+    changePinDto: ChangePinDto,
+  ): Promise<ChangePinResponseDto> {
     const { currentPin, newPin, confirmPin } = changePinDto;
 
     try {
@@ -364,7 +395,7 @@ export class AuthService {
 
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
-      
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -404,18 +435,17 @@ export class AuthService {
 
       // Hash the new PIN using bcrypt
       const hashedNewPin = await bcrypt.hash(newPin, 12);
-      
+
       // Update the password field with the new PIN
       await this.userRepository.query(
-        "UPDATE users SET password = ? WHERE username = ?",
-        [hashedNewPin, username]
+        'UPDATE users SET password = ? WHERE username = ?',
+        [hashedNewPin, username],
       );
 
       return {
         error: false,
         message: 'PIN changed successfully',
       };
-
     } catch (error) {
       console.error('Change PIN error:', error);
       return {
@@ -425,13 +455,15 @@ export class AuthService {
     }
   }
 
-  async getClientDetails(getClientDetailsDto: GetClientDetailsDto): Promise<ClientDetailsResponseDto> {
+  async getClientDetails(
+    getClientDetailsDto: GetClientDetailsDto,
+  ): Promise<ClientDetailsResponseDto> {
     const { username } = getClientDetailsDto;
 
     try {
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
-      
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -461,7 +493,6 @@ export class AuthService {
         message: 'Client details retrieved successfully',
         data: clientDetails,
       };
-
     } catch (error) {
       console.error('Get client details error:', error);
       return {
@@ -472,7 +503,9 @@ export class AuthService {
     }
   }
 
-  async forgotChangePassword(forgotChangePasswordDto: ForgotChangePasswordDto): Promise<ForgotChangePasswordResponseDto> {
+  async forgotChangePassword(
+    forgotChangePasswordDto: ForgotChangePasswordDto,
+  ): Promise<ForgotChangePasswordResponseDto> {
     const { username, newPassword, confirmPassword } = forgotChangePasswordDto;
 
     try {
@@ -486,7 +519,7 @@ export class AuthService {
 
       // Find user with link data
       const userWithLinkData = await this.findUserWithLinkData(username);
-      
+
       if (!userWithLinkData) {
         return {
           error: true,
@@ -504,18 +537,17 @@ export class AuthService {
 
       // Hash the new password using bcrypt
       const hashedNewPassword = await bcrypt.hash(newPassword, 12);
-      
+
       // Update the password in database
       await this.userRepository.query(
-        "UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?",
-        [hashedNewPassword, username]
+        'UPDATE users SET password = ?, is_bcrypt = 1 WHERE username = ?',
+        [hashedNewPassword, username],
       );
 
       return {
         error: false,
         message: 'Password changed successfully',
       };
-
     } catch (error) {
       console.error('Forgot change password error:', error);
       return {
@@ -554,4 +586,3 @@ export class AuthService {
     return result[0] || null;
   }
 }
-

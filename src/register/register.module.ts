@@ -11,11 +11,13 @@ import { InvestmentTempResponse } from '../entities/investment-temp-response.ent
 @Module({
   imports: [
     TypeOrmModule.forFeature([ClientAccount, BboCommission], 'default'),
-    TypeOrmModule.forFeature([ApiOnlineTerminal, Emd, InvestmentTempResponse], 'cms22'),
+    TypeOrmModule.forFeature(
+      [ApiOnlineTerminal, Emd, InvestmentTempResponse],
+      'cms22',
+    ),
   ],
   controllers: [RegisterController],
   providers: [RegisterService],
   exports: [RegisterService],
 })
 export class RegisterModule {}
-

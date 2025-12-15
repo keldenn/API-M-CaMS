@@ -7,9 +7,7 @@ import { Symbol } from '../entities/symbol.entity';
 import { BboFinance } from '../entities/bbo-finance.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([CdsHolding, Symbol, BboFinance])
-  ],
+  imports: [TypeOrmModule.forFeature([CdsHolding, Symbol, BboFinance])],
   controllers: [HoldingsController],
   providers: [HoldingsService],
   exports: [HoldingsService],

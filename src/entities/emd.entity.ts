@@ -32,4 +32,3 @@ export class Emd {
   @Column({ type: 'int', nullable: true })
   user_online_id: number;
 }
-

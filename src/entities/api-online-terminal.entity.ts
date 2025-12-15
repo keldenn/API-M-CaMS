@@ -1,8 +1,17 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity('api_online_terminal')
 export class ApiOnlineTerminal {
-  @PrimaryGeneratedColumn({ name: 'user_online_id', type: 'bigint', unsigned: true })
+  @PrimaryGeneratedColumn({
+    name: 'user_online_id',
+    type: 'bigint',
+    unsigned: true,
+  })
   user_online_id: number;
 
   @Column({ type: 'char', length: 11 })

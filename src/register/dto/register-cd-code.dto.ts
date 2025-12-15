@@ -1,13 +1,29 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, IsEmail, IsDateString, Matches, Length, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsInt,
+  IsEmail,
+  IsDateString,
+  Matches,
+  Length,
+  IsOptional,
+} from 'class-validator';
 
 export class RegisterCdCodeDto {
-  @ApiProperty({ description: 'Account type (e.g., "I" for Individual)', example: 'I', required: false })
+  @ApiProperty({
+    description: 'Account type (e.g., "I" for Individual)',
+    example: 'I',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   acc_type?: string;
 
-  @ApiProperty({ description: 'CD Code (will be generated if not provided)', required: false })
+  @ApiProperty({
+    description: 'CD Code (will be generated if not provided)',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   cd_code?: string;
@@ -17,7 +33,10 @@ export class RegisterCdCodeDto {
   @IsNotEmpty()
   f_name: string;
 
-  @ApiProperty({ description: 'Citizen ID (must be 11 digits)', example: '12345678901' })
+  @ApiProperty({
+    description: 'Citizen ID (must be 11 digits)',
+    example: '12345678901',
+  })
   @IsString()
   @IsNotEmpty()
   @Length(11, 11, { message: 'ID must be exactly 11 digits' })
@@ -59,7 +78,12 @@ export class RegisterCdCodeDto {
   @IsNotEmpty()
   bank_account: string;
 
-  @ApiProperty({ description: 'Broker commission ID (will be fetched from bbo_commission if not provided)', example: 1, required: false })
+  @ApiProperty({
+    description:
+      'Broker commission ID (will be fetched from bbo_commission if not provided)',
+    example: 1,
+    required: false,
+  })
   @IsOptional()
   @IsInt()
   bro_comm_id?: number;
@@ -135,4 +159,3 @@ export class RegisterCdCodeDto {
   @IsString()
   marital?: string;
 }
-

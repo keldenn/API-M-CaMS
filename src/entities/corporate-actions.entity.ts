@@ -32,4 +32,3 @@ export class CorporateActions {
   @Column({ name: 'updated_at', type: 'datetime' })
   updated_at: Date;
 }
-

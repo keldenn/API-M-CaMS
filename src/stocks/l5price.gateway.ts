@@ -18,7 +18,9 @@ import { L5PriceDto } from './dto/l5price.dto';
   },
   namespace: '/L5price',
 })
-export class L5PriceGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class L5PriceGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -46,12 +48,12 @@ export class L5PriceGateway implements OnGatewayConnection, OnGatewayDisconnect 
     @ConnectedSocket() client: Socket,
   ) {
     this.logger.log(`Client ${client.id} subscribing to L5price data`);
-    
+
     try {
       // Send initial data
       const l5PriceData = await this.l5PriceService.getL5PriceData();
       client.emit('l5PriceData', l5PriceData);
-      
+
       return { status: 'subscribed' };
     } catch (error) {
       this.logger.error('Error fetching L5price data:', error);

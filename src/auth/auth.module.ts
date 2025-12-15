@@ -18,15 +18,16 @@ import { LinkUser } from '../entities/linkuser.entity';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const jwtSecret = configService.get<string>('JWT_SECRET');
-        
+
         if (!jwtSecret) {
           throw new Error('JWT_SECRET environment variable is required');
         }
-        
+
         return {
           secret: jwtSecret,
           signOptions: {
-            expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '10m',
+            expiresIn:
+              configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '10m',
           },
         };
       },
@@ -38,4 +39,3 @@ import { LinkUser } from '../entities/linkuser.entity';
   exports: [AuthService],
 })
 export class AuthModule {}
-

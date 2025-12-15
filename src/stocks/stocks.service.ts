@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketPrice } from '../entities/market-price.entity';
@@ -61,7 +68,7 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     `;
 
     const results = await this.marketPriceRepository.query(query);
-    
+
     return results.map((row) => ({
       symbol: row.symbol,
       name: row.name,
@@ -78,10 +85,12 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
         const changedPrices = this.detectPriceChanges(currentPrices);
 
         if (changedPrices.length > 0) {
-          this.logger.log(`Price changes detected for ${changedPrices.length} stocks`);
+          this.logger.log(
+            `Price changes detected for ${changedPrices.length} stocks`,
+          );
           // Broadcast all prices (or just changed ones, depending on your needs)
           this.stocksGateway.broadcastPriceUpdate(currentPrices);
-          
+
           // Update last known prices
           currentPrices.forEach((stock) => {
             this.lastPrices.set(stock.symbol, stock.currentPrice);
@@ -92,7 +101,9 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
       }
     }, this.CHECK_INTERVAL);
 
-    this.logger.log(`Started price monitoring (interval: ${this.CHECK_INTERVAL}ms)`);
+    this.logger.log(
+      `Started price monitoring (interval: ${this.CHECK_INTERVAL}ms)`,
+    );
   }
 
   private detectPriceChanges(currentPrices: StockPriceDto[]): StockPriceDto[] {
@@ -123,11 +134,10 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     `;
 
     const result = await this.marketIndexRepository.query(query);
-    
+
     return {
       market_cap: result[0]?.market_cap ? parseFloat(result[0].market_cap) : 0,
       total_listed_scripts: parseInt(result[0]?.total_listed_scripts) || 0,
     };
   }
 }
-

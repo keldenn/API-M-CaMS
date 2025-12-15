@@ -7,7 +7,9 @@ export class ListedScriptsResponseDto {
   @ApiProperty({ example: 'GICB', description: 'Stock symbol' })
   symbol: string;
 
-  @ApiProperty({ example: 'GIC BHUTAN REINSURANCE CO. LTD.', description: 'Company name' })
+  @ApiProperty({
+    example: 'GIC BHUTAN REINSURANCE CO. LTD.',
+    description: 'Company name',
+  })
   name: string;
 }
-

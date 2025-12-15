@@ -18,12 +18,17 @@ import { PriceMovementDto } from './dto/price-movement.dto';
   },
   namespace: '/price_movement',
 })
-export class PriceMovementGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class PriceMovementGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(PriceMovementGateway.name);
-  private connectedClients = new Map<string, { socket: Socket; symbol: string }>();
+  private connectedClients = new Map<
+    string,
+    { socket: Socket; symbol: string }
+  >();
 
   constructor(
     @Inject(forwardRef(() => PriceMovementService))
@@ -49,15 +54,22 @@ export class PriceMovementGateway implements OnGatewayConnection, OnGatewayDisco
       return { status: 'error', message: 'Symbol is required' };
     }
 
-    this.logger.log(`Client ${client.id} subscribing to price movement for symbol: ${data.symbol}`);
-    
+    this.logger.log(
+      `Client ${client.id} subscribing to price movement for symbol: ${data.symbol}`,
+    );
+
     // Store client and symbol mapping
-    this.connectedClients.set(client.id, { socket: client, symbol: data.symbol });
-    
+    this.connectedClients.set(client.id, {
+      socket: client,
+      symbol: data.symbol,
+    });
+
     // Send initial data
-    const priceMovementData = await this.priceMovementService.getPriceMovement(data.symbol);
+    const priceMovementData = await this.priceMovementService.getPriceMovement(
+      data.symbol,
+    );
     client.emit('priceMovementData', priceMovementData);
-    
+
     return { status: 'subscribed', symbol: data.symbol };
   }
 
@@ -69,11 +81,16 @@ export class PriceMovementGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   // Method to broadcast price movement updates to specific symbol subscribers
-  broadcastPriceMovementUpdate(symbol: string, priceMovementData: PriceMovementDto[]) {
+  broadcastPriceMovementUpdate(
+    symbol: string,
+    priceMovementData: PriceMovementDto[],
+  ) {
     this.connectedClients.forEach((clientData, clientId) => {
       if (clientData.symbol === symbol) {
         clientData.socket.emit('priceMovementUpdate', priceMovementData);
-        this.logger.log(`Broadcasted price movement update for ${symbol} to client ${clientId}`);
+        this.logger.log(
+          `Broadcasted price movement update for ${symbol} to client ${clientId}`,
+        );
       }
     });
   }

@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -41,11 +46,16 @@ export class RegisterService {
   /**
    * Checks for duplicate CID within the same broker
    */
-  private async checkDuplicateCid(id: string, userMemCode: string): Promise<void> {
+  private async checkDuplicateCid(
+    id: string,
+    userMemCode: string,
+  ): Promise<void> {
     const count = await this.clientAccountRepository
       .createQueryBuilder('ca')
       .where('ca.ID = :id', { id })
-      .andWhere('SUBSTRING(ca.user_name, 1, 7) = :memCode', { memCode: userMemCode })
+      .andWhere('SUBSTRING(ca.user_name, 1, 7) = :memCode', {
+        memCode: userMemCode,
+      })
       .getCount();
 
     if (count > 0) {
@@ -65,28 +75,36 @@ export class RegisterService {
 
     const prefix = match[1];
     const numberPart = match[2];
-    const incrementedNumber = (parseInt(numberPart, 10) + 1).toString().padStart(numberPart.length, '0');
-    
+    const incrementedNumber = (parseInt(numberPart, 10) + 1)
+      .toString()
+      .padStart(numberPart.length, '0');
+
     return prefix + incrementedNumber;
   }
 
   /**
    * Creates the first CD code for a broker in a given year
    */
-  private createFirstCdCode(brokerPrefix: string, fullYear: number, shortYear: number): string {
+  private createFirstCdCode(
+    brokerPrefix: string,
+    fullYear: number,
+    shortYear: number,
+  ): string {
     const cdFormats: Record<string, string> = {
-      'MEMBOBL': `B${fullYear}00001`,
-      'MEMBNBL': `U${fullYear}00001`,
-      'MEMRICB': `R${fullYear}00001`,
-      'MEMBDBL': `BD${shortYear}000001`,
-      'MEMBPCL': `BP${shortYear}000001`,
-      'MEMRINS': `RN${shortYear}000001`,
-      'MEMSERS': `SER${shortYear}00001`,
-      'MEMDSBP': `DSB${shortYear}00001`,
-      'MEMLDSB': `LDSB${shortYear}0001`,
+      MEMBOBL: `B${fullYear}00001`,
+      MEMBNBL: `U${fullYear}00001`,
+      MEMRICB: `R${fullYear}00001`,
+      MEMBDBL: `BD${shortYear}000001`,
+      MEMBPCL: `BP${shortYear}000001`,
+      MEMRINS: `RN${shortYear}000001`,
+      MEMSERS: `SER${shortYear}00001`,
+      MEMDSBP: `DSB${shortYear}00001`,
+      MEMLDSB: `LDSB${shortYear}0001`,
     };
 
-    return cdFormats[brokerPrefix] ?? `${brokerPrefix.slice(-4)}${shortYear}0001`;
+    return (
+      cdFormats[brokerPrefix] ?? `${brokerPrefix.slice(-4)}${shortYear}0001`
+    );
   }
 
   /**
@@ -102,7 +120,9 @@ export class RegisterService {
     // Get last CD code for this broker in current year
     const lastRecord = await this.clientAccountRepository
       .createQueryBuilder('ca')
-      .where('SUBSTRING(ca.user_name, 1, 7) = :memCode', { memCode: userMemCode })
+      .where('SUBSTRING(ca.user_name, 1, 7) = :memCode', {
+        memCode: userMemCode,
+      })
       .andWhere('YEAR(ca.ca_date) = :year', { year })
       .orderBy('ca.client_id', 'DESC')
       .getOne();
@@ -133,20 +153,22 @@ export class RegisterService {
   /**
    * Fetches bro_comm_id from bbo_commission table based on institution_id and rate
    */
-  private async getBroCommIdByInstitution(institutionId: number): Promise<number | undefined> {
+  private async getBroCommIdByInstitution(
+    institutionId: number,
+  ): Promise<number | undefined> {
     try {
       // Use raw query to handle decimal comparison more reliably
       // Using the exact query format from the user's specification
       let result = await this.bboCommissionRepository.query(
         `SELECT b.bro_comm_id FROM bbo_commission AS b WHERE b.institution_id = ? AND b.rate = 1.0`,
-        [institutionId]
+        [institutionId],
       );
 
       // If no result, try with CAST for better decimal comparison
       if (!result || result.length === 0) {
         result = await this.bboCommissionRepository.query(
           `SELECT b.bro_comm_id FROM bbo_commission AS b WHERE b.institution_id = ? AND CAST(b.rate AS DECIMAL(10,2)) = 1.0`,
-          [institutionId]
+          [institutionId],
         );
       }
 
@@ -164,7 +186,9 @@ export class RegisterService {
   /**
    * Main method to register client account with CD code
    */
-  async registerCdCode(registerDto: RegisterCdCodeDto): Promise<{ message: string; cd_code: string; client_id: number }> {
+  async registerCdCode(
+    registerDto: RegisterCdCodeDto,
+  ): Promise<{ message: string; cd_code: string; client_id: number }> {
     // Step 1: Validate ID has 11 digits
     this.validateId(registerDto.ID);
 
@@ -182,21 +206,27 @@ export class RegisterService {
       // Generate CD code with retry logic in case of conflicts
       let attempts = 0;
       const maxAttempts = 10;
-      
+
       do {
-        cdCode = await this.generateIndividualCdCode(userMemCode, registerDto.user_name, currentYear);
+        cdCode = await this.generateIndividualCdCode(
+          userMemCode,
+          registerDto.user_name,
+          currentYear,
+        );
         attempts++;
-        
+
         // Check if generated code already exists
         try {
           await this.checkCdCodeUniqueness(cdCode);
           break; // Code is unique, exit loop
         } catch (error) {
           if (attempts >= maxAttempts) {
-            throw new ConflictException('Unable to generate unique CD code after multiple attempts');
+            throw new ConflictException(
+              'Unable to generate unique CD code after multiple attempts',
+            );
           }
           // If conflict, wait a bit and try again (increment will happen on next query)
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       } while (attempts < maxAttempts);
     } else {
@@ -207,9 +237,13 @@ export class RegisterService {
     // Step 5: Get bro_comm_id from bbo_commission if institution_id is provided and bro_comm_id is not provided
     let broCommId = registerDto.bro_comm_id;
     if (!broCommId && registerDto.institution_id) {
-      broCommId = await this.getBroCommIdByInstitution(registerDto.institution_id);
+      broCommId = await this.getBroCommIdByInstitution(
+        registerDto.institution_id,
+      );
       if (!broCommId) {
-        throw new NotFoundException(`No broker commission found for institution_id ${registerDto.institution_id} with rate 1.0`);
+        throw new NotFoundException(
+          `No broker commission found for institution_id ${registerDto.institution_id} with rate 1.0`,
+        );
       }
     }
 
@@ -234,7 +268,9 @@ export class RegisterService {
     clientAccount.bank_account_type = 'Savings'; // Set bank_account_type to "Savings" statically
     clientAccount.bro_comm_id = broCommId || null;
     clientAccount.address = registerDto.address || null;
-    clientAccount.institution_id = registerDto.institution_id ? String(registerDto.institution_id) : null;
+    clientAccount.institution_id = registerDto.institution_id
+      ? String(registerDto.institution_id)
+      : null;
     clientAccount.license_no = registerDto.licenseNo || null;
     clientAccount.dob = registerDto.dob ? new Date(registerDto.dob) : null;
     clientAccount.guardian_name = registerDto.guardian_name || null;
@@ -263,11 +299,16 @@ export class RegisterService {
     date: string;
     order_no: string;
   }> {
-    const systime = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const systime = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 14);
 
     // Sanitize phone and email
     const phone = /^\d+$/.test(dto.phoneNo) ? dto.phoneNo : undefined;
-    const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email) ? dto.email : 'default@example.com';
+    const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)
+      ? dto.email
+      : 'default@example.com';
 
     const onlineTerminal = this.apiOnlineTerminalRepository.create({
       cid: dto.cidNo,
@@ -297,21 +338,27 @@ export class RegisterService {
         order_no: dto.orderNo,
       };
     } else {
-      throw new BadRequestException('Something went wrong. Please try again later.');
+      throw new BadRequestException(
+        'Something went wrong. Please try again later.',
+      );
     }
   }
 
   /**
    * Process payment success for mCaMS registration (OT)
    */
-  async paymentSuccessOT(dto: PaymentSuccessOtDto): Promise<{ status: number; message: string }> {
+  async paymentSuccessOT(
+    dto: PaymentSuccessOtDto,
+  ): Promise<{ status: number; message: string }> {
     const queryRunner = this.cms22DataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
       // Step 1: Update fee_status and cd_code in api_online_terminal
-      const updateData: { fee_status: string; cd_code?: string } = { fee_status: '1' };
+      const updateData: { fee_status: string; cd_code?: string } = {
+        fee_status: '1',
+      };
       if (dto.cd_code) {
         updateData.cd_code = dto.cd_code;
       }
@@ -342,14 +389,14 @@ export class RegisterService {
         `INSERT INTO emd (cid, cd_code, name, phone, email, app_fee, fee_status, order_no, user_online_id)
          SELECT cid, cd_code, name, phone, email, app_fee, fee_status, order_no, user_online_id
          FROM api_online_terminal WHERE order_no = ?`,
-        [dto.orderNo]
+        [dto.orderNo],
       );
 
       // Step 4: Insert into investment_temp_response
       await queryRunner.query(
         `INSERT INTO investment_temp_response (order_number, investment_amount, auth_code, msg_type)
          VALUES (?, ?, '00', 'AC')`,
-        [dto.orderNo, dto.fee || 0]
+        [dto.orderNo, dto.fee || 0],
       );
 
       // Commit transaction
@@ -398,16 +445,22 @@ export class RegisterService {
     const maxAttempts = 10;
 
     do {
-      cdCode = await this.generateIndividualCdCode(userMemCode, dto.user_name, currentYear);
+      cdCode = await this.generateIndividualCdCode(
+        userMemCode,
+        dto.user_name,
+        currentYear,
+      );
       attempts++;
       try {
         await this.checkCdCodeUniqueness(cdCode);
         break;
       } catch (error) {
         if (attempts >= maxAttempts) {
-          throw new ConflictException('Unable to generate unique CD code after multiple attempts');
+          throw new ConflictException(
+            'Unable to generate unique CD code after multiple attempts',
+          );
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     } while (attempts < maxAttempts);
 
@@ -416,7 +469,9 @@ export class RegisterService {
     if (!broCommId && dto.institution_id) {
       broCommId = await this.getBroCommIdByInstitution(dto.institution_id);
       if (!broCommId) {
-        throw new NotFoundException(`No broker commission found for institution_id ${dto.institution_id} with rate 1.0`);
+        throw new NotFoundException(
+          `No broker commission found for institution_id ${dto.institution_id} with rate 1.0`,
+        );
       }
     }
 
@@ -449,7 +504,9 @@ export class RegisterService {
       clientAccount.bank_account_type = 'Savings';
       clientAccount.bro_comm_id = broCommId || null;
       clientAccount.address = dto.address || null;
-      clientAccount.institution_id = dto.institution_id ? String(dto.institution_id) : null;
+      clientAccount.institution_id = dto.institution_id
+        ? String(dto.institution_id)
+        : null;
       clientAccount.license_no = dto.licenseNo || null;
       clientAccount.dob = dto.dob ? new Date(dto.dob) : null;
       clientAccount.guardian_name = dto.guardian_name || null;
@@ -458,7 +515,8 @@ export class RegisterService {
       clientAccount.user_name = dto.user_name || null;
       clientAccount.ca_date = new Date();
 
-      const savedAccount = await this.clientAccountRepository.save(clientAccount);
+      const savedAccount =
+        await this.clientAccountRepository.save(clientAccount);
       savedClientId = savedAccount.client_id;
 
       // Step 7: Create api_online_terminal record
@@ -502,14 +560,14 @@ export class RegisterService {
         `INSERT INTO emd (cid, cd_code, name, phone, email, app_fee, fee_status, order_no, user_online_id)
          SELECT cid, cd_code, name, phone, email, app_fee, fee_status, order_no, user_online_id
          FROM api_online_terminal WHERE order_no = ?`,
-        [dto.orderNo]
+        [dto.orderNo],
       );
 
       // Step 10: Insert into investment_temp_response
       await queryRunner.query(
         `INSERT INTO investment_temp_response (order_number, investment_amount, auth_code, msg_type)
          VALUES (?, ?, '00', 'AC')`,
-        [dto.orderNo, dto.fee || 0]
+        [dto.orderNo, dto.fee || 0],
       );
 
       // Step 11: Insert into users table
@@ -546,19 +604,14 @@ export class RegisterService {
           amtStatus,
           dto.orderNo,
           isPin,
-        ]
+        ],
       );
 
       // Step 12: Insert into linkuser table
       await queryRunner.query(
         `INSERT INTO linkuser (participant_code, client_code, username, broker_user_name)
          VALUES (?, ?, ?, ?)`,
-        [
-          userMemCode,
-          cdCode,
-          username,
-          dto.user_name,
-        ]
+        [userMemCode, cdCode, username, dto.user_name],
       );
 
       // Commit transaction
@@ -577,7 +630,9 @@ export class RegisterService {
       // Also delete the client_account if it was created
       if (savedClientId) {
         try {
-          await this.clientAccountRepository.delete({ client_id: savedClientId });
+          await this.clientAccountRepository.delete({
+            client_id: savedClientId,
+          });
         } catch (deleteError) {
           console.error('Failed to rollback client_account:', deleteError);
         }
@@ -593,4 +648,3 @@ export class RegisterService {
     }
   }
 }
-

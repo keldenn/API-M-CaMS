@@ -1,9 +1,17 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
-export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions => {
-  const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE'];
-  
+export const getDatabaseConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => {
+  const requiredEnvVars = [
+    'DB_HOST',
+    'DB_PORT',
+    'DB_USERNAME',
+    'DB_PASSWORD',
+    'DB_DATABASE',
+  ];
+
   for (const envVar of requiredEnvVars) {
     if (!configService.get(envVar)) {
       throw new Error(`${envVar} environment variable is required`);
@@ -29,9 +37,17 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   };
 };
 
-export const getFinancialDatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions => {
-  const requiredEnvVars = ['DB_HOST1', 'DB_PORT1', 'DB_USERNAME1', 'DB_PASSWORD1', 'DB_DATABASE1'];
-  
+export const getFinancialDatabaseConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => {
+  const requiredEnvVars = [
+    'DB_HOST1',
+    'DB_PORT1',
+    'DB_USERNAME1',
+    'DB_PASSWORD1',
+    'DB_DATABASE1',
+  ];
+
   for (const envVar of requiredEnvVars) {
     if (!configService.get(envVar)) {
       throw new Error(`${envVar} environment variable is required`);
@@ -57,14 +73,19 @@ export const getFinancialDatabaseConfig = (configService: ConfigService): TypeOr
   };
 };
 
-export const getCms22DatabaseConfig = (configService: ConfigService): TypeOrmModuleOptions => {
-  const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE'];
-  
+export const getCms22DatabaseConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => {
+  const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD'];
+
   for (const envVar of requiredEnvVars) {
     if (!configService.get(envVar)) {
       throw new Error(`${envVar} environment variable is required`);
     }
   }
+
+  // Use DB_DATABASE env variable, default to 'cms22' if not set
+  const database = configService.get<string>('DB_DATABASE') || 'cms22';
 
   return {
     type: 'mysql',
@@ -72,7 +93,7 @@ export const getCms22DatabaseConfig = (configService: ConfigService): TypeOrmMod
     port: configService.get<number>('DB_PORT')!,
     username: configService.get<string>('DB_USERNAME')!,
     password: configService.get<string>('DB_PASSWORD')!,
-    database: configService.get<string>('DB_DATABASE')!,
+    database: database,
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     synchronize: false,
     migrations: [],
@@ -84,4 +105,3 @@ export const getCms22DatabaseConfig = (configService: ConfigService): TypeOrmMod
     },
   };
 };
-

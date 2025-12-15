@@ -14,15 +14,39 @@ export class CdsHolding {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   volume: number;
 
-  @Column({ name: 'pending_out_vol', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'pending_out_vol',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   pending_out_vol: number;
 
-  @Column({ name: 'pending_in_vol', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'pending_in_vol',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   pending_in_vol: number;
 
-  @Column({ name: 'pledge_volume', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'pledge_volume',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   pledge_volume: number;
 
-  @Column({ name: 'block_volume', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'block_volume',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   block_volume: number;
 }

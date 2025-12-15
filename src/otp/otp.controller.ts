@@ -46,7 +46,9 @@ export class OtpController {
     description: 'OTP verification response',
     type: VerifyOtpResponseDto,
   })
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
+  async verifyOtp(
+    @Body() verifyOtpDto: VerifyOtpDto,
+  ): Promise<VerifyOtpResponseDto> {
     return this.otpService.verifyOtp(verifyOtpDto);
   }
 }

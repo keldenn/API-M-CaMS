@@ -10,15 +10,11 @@ import { Scripts } from '../entities/scripts.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Symbol,
-      MarketPriceHistory,
-      ExecutedOrders,
-    ], 'default'),
-    TypeOrmModule.forFeature([
-      EquityMetrics,
-      Scripts,
-    ], 'financial'),
+    TypeOrmModule.forFeature(
+      [Symbol, MarketPriceHistory, ExecutedOrders],
+      'default',
+    ),
+    TypeOrmModule.forFeature([EquityMetrics, Scripts], 'financial'),
   ],
   controllers: [MarketDataController],
   providers: [MarketDataService],

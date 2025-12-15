@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Symbol } from './symbol.entity';
 
 @Entity('executed_orders')
@@ -12,7 +18,12 @@ export class ExecutedOrders {
   @Column({ name: 'order_exe_price', type: 'decimal', precision: 18, scale: 4 })
   order_exe_price: number;
 
-  @Column({ name: 'lot_size_execute', type: 'decimal', precision: 18, scale: 2 })
+  @Column({
+    name: 'lot_size_execute',
+    type: 'decimal',
+    precision: 18,
+    scale: 2,
+  })
   lot_size_execute: number;
 
   @Column({ name: 'order_date', type: 'datetime' })

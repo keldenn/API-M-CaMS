@@ -17,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!jwtSecret) {
       throw new Error('JWT_SECRET environment variable is required');
     }
-    
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.type !== 'access') {
       throw new Error('Invalid token type');
     }
-    
+
     return {
       userId: payload.sub,
       username: payload.username,
@@ -39,4 +39,3 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     };
   }
 }
-

@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MarketPriceHistory } from '../entities/market-price-history.entity';
@@ -58,11 +65,17 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
       ORDER BY date ASC;
     `;
 
-    this.logger.log(`Fetching latest price movement data per day for symbol: ${symbol}`);
-    const results = await this.marketPriceHistoryRepository.query(query, [symbol]);
-    
-    this.logger.log(`Query returned ${results.length} records for symbol: ${symbol}`);
-    
+    this.logger.log(
+      `Fetching latest price movement data per day for symbol: ${symbol}`,
+    );
+    const results = await this.marketPriceHistoryRepository.query(query, [
+      symbol,
+    ]);
+
+    this.logger.log(
+      `Query returned ${results.length} records for symbol: ${symbol}`,
+    );
+
     const priceMovementData = results.map((row) => ({
       price: parseFloat(row.price),
       date: new Date(row.date),
@@ -70,14 +83,18 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
 
     // Log sample data for debugging
     if (priceMovementData.length > 0) {
-      this.logger.log(`Sample data for ${symbol}: First record - Price: ${priceMovementData[0].price}, Date: ${priceMovementData[0].date}`);
+      this.logger.log(
+        `Sample data for ${symbol}: First record - Price: ${priceMovementData[0].price}, Date: ${priceMovementData[0].date}`,
+      );
       if (priceMovementData.length > 1) {
-        this.logger.log(`Sample data for ${symbol}: Last record - Price: ${priceMovementData[priceMovementData.length - 1].price}, Date: ${priceMovementData[priceMovementData.length - 1].date}`);
+        this.logger.log(
+          `Sample data for ${symbol}: Last record - Price: ${priceMovementData[priceMovementData.length - 1].price}, Date: ${priceMovementData[priceMovementData.length - 1].date}`,
+        );
       }
     } else {
       this.logger.warn(`No price movement data found for symbol: ${symbol}`);
     }
-    
+
     return priceMovementData;
   }
 
@@ -85,8 +102,9 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
     this.priceMovementCheckInterval = setInterval(async () => {
       try {
         // Get all symbols that have connected clients
-        const connectedSymbols = this.priceMovementGateway.getConnectedClientsForSymbol('');
-        
+        const connectedSymbols =
+          this.priceMovementGateway.getConnectedClientsForSymbol('');
+
         // Get all unique symbols from connected clients
         const symbols = new Set<string>();
         this.priceMovementGateway['connectedClients'].forEach((clientData) => {
@@ -99,12 +117,22 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
           const lastPriceMovement = this.lastPriceMovements.get(symbol);
 
           // Check if price movement data has changed
-          if (this.hasPriceMovementChanged(lastPriceMovement, currentPriceMovement)) {
-            this.logger.log(`Price movement changes detected for symbol: ${symbol}`);
-            
+          if (
+            this.hasPriceMovementChanged(
+              lastPriceMovement,
+              currentPriceMovement,
+            )
+          ) {
+            this.logger.log(
+              `Price movement changes detected for symbol: ${symbol}`,
+            );
+
             // Broadcast update to clients subscribed to this symbol
-            this.priceMovementGateway.broadcastPriceMovementUpdate(symbol, currentPriceMovement);
-            
+            this.priceMovementGateway.broadcastPriceMovementUpdate(
+              symbol,
+              currentPriceMovement,
+            );
+
             // Update last known price movement data
             this.lastPriceMovements.set(symbol, currentPriceMovement);
           }
@@ -114,12 +142,14 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
       }
     }, this.CHECK_INTERVAL);
 
-    this.logger.log(`Started price movement monitoring (interval: ${this.CHECK_INTERVAL}ms)`);
+    this.logger.log(
+      `Started price movement monitoring (interval: ${this.CHECK_INTERVAL}ms)`,
+    );
   }
 
   private hasPriceMovementChanged(
     lastData: PriceMovementDto[] | undefined,
-    currentData: PriceMovementDto[]
+    currentData: PriceMovementDto[],
   ): boolean {
     if (!lastData || lastData.length !== currentData.length) {
       return true;
@@ -129,9 +159,11 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
     for (let i = 0; i < currentData.length; i++) {
       const last = lastData[i];
       const current = currentData[i];
-      
-      if (last.price !== current.price || 
-          last.date.getTime() !== current.date.getTime()) {
+
+      if (
+        last.price !== current.price ||
+        last.date.getTime() !== current.date.getTime()
+      ) {
         return true;
       }
     }
@@ -145,17 +177,27 @@ export class PriceMovementService implements OnModuleInit, OnModuleDestroy {
       const currentPriceMovement = await this.getPriceMovement(symbol);
       const lastPriceMovement = this.lastPriceMovements.get(symbol);
 
-      if (this.hasPriceMovementChanged(lastPriceMovement, currentPriceMovement)) {
-        this.logger.log(`Manual price movement check - changes detected for symbol: ${symbol}`);
-        
+      if (
+        this.hasPriceMovementChanged(lastPriceMovement, currentPriceMovement)
+      ) {
+        this.logger.log(
+          `Manual price movement check - changes detected for symbol: ${symbol}`,
+        );
+
         // Broadcast update to clients subscribed to this symbol
-        this.priceMovementGateway.broadcastPriceMovementUpdate(symbol, currentPriceMovement);
-        
+        this.priceMovementGateway.broadcastPriceMovementUpdate(
+          symbol,
+          currentPriceMovement,
+        );
+
         // Update last known price movement data
         this.lastPriceMovements.set(symbol, currentPriceMovement);
       }
     } catch (error) {
-      this.logger.error(`Error checking price movement for symbol ${symbol}:`, error);
+      this.logger.error(
+        `Error checking price movement for symbol ${symbol}:`,
+        error,
+      );
     }
   }
 }

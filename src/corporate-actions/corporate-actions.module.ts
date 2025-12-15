@@ -17,4 +17,3 @@ import { Symbol } from '../entities/symbol.entity';
   exports: [CorporateActionsService],
 })
 export class CorporateActionsModule {}
-

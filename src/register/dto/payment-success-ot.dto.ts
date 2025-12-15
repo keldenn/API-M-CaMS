@@ -52,4 +52,3 @@ export class PaymentSuccessOtDto {
   @IsOptional()
   fee?: number;
 }
-

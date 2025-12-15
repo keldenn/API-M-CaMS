@@ -8,7 +8,12 @@ export class BboCommission {
   @Column({ name: 'institution_id', type: 'int', nullable: true })
   institution_id: number | null;
 
-  @Column({ name: 'rate', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({
+    name: 'rate',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+  })
   rate: number | null;
 }
-

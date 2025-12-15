@@ -1,5 +1,10 @@
 import { Controller, Get, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { L5PriceService } from './l5price.service';
 import { L5PriceDto } from './dto/l5price.dto';
 
@@ -12,18 +17,19 @@ export class L5PriceController {
 
   @Get()
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get L5price data',
-    description: 'Retrieves the latest 5 days price movement data for all listed companies. Requires authentication.'
+    description:
+      'Retrieves the latest 5 days price movement data for all listed companies. Requires authentication.',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'L5price data retrieved successfully',
-    type: [L5PriceDto]
+    type: [L5PriceDto],
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Authentication required'
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication required',
   })
   async getL5PriceData(): Promise<L5PriceDto[]> {
     this.logger.log('Fetching L5price data via REST API');

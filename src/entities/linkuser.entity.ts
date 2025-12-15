@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('linkuser')
 export class LinkUser {
@@ -23,4 +29,3 @@ export class LinkUser {
   @Column({ type: 'datetime', nullable: true })
   updated_at: Date;
 }
-

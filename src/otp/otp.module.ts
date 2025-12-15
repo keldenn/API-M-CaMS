@@ -6,10 +6,7 @@ import { OtpController } from './otp.controller';
 import { SmsOtpLog } from '../entities/sms-otp-log.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SmsOtpLog]),
-    ConfigModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SmsOtpLog]), ConfigModule],
   providers: [OtpService],
   controllers: [OtpController],
   exports: [OtpService],

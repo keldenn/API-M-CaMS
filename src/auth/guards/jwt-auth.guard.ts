@@ -13,14 +13,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           statusCode: 401,
         });
       }
-      
+
       if (info instanceof JsonWebTokenError) {
         throw new UnauthorizedException({
           message: 'Unauthorized',
           statusCode: 401,
         });
       }
-      
+
       // For other errors (like invalid token type)
       if (info && info.message) {
         throw new UnauthorizedException({
@@ -28,15 +28,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           statusCode: 401,
         });
       }
-      
+
       // Generic unauthorized for any other case
       throw new UnauthorizedException({
         message: 'Unauthorized',
         statusCode: 401,
       });
     }
-    
+
     return user;
   }
 }
-

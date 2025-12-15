@@ -1,5 +1,18 @@
-import { Controller, Get, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Param,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { CorporateActionsService } from './corporate-actions.service';
 import { CorporateActionsResponseDto } from './dto/corporate-actions-response.dto';
 import { AgmResponseDto } from './dto/agm-response.dto';
@@ -12,13 +25,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class CorporateActionsController {
-  constructor(private readonly corporateActionsService: CorporateActionsService) {}
+  constructor(
+    private readonly corporateActionsService: CorporateActionsService,
+  ) {}
 
   @Get('corporate-actions/:script')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get corporate actions by script',
-    description: 'Retrieve corporate actions for a specific stock script symbol ordered by year in ascending order.',
+    description:
+      'Retrieve corporate actions for a specific stock script symbol ordered by year in ascending order.',
   })
   @ApiParam({
     name: 'script',
@@ -41,9 +57,12 @@ export class CorporateActionsController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Not Found - No corporate actions found for the specified script',
+    description:
+      'Not Found - No corporate actions found for the specified script',
   })
-  async getCorporateActionsByScript(@Param('script') script: string): Promise<CorporateActionsResponseDto[]> {
+  async getCorporateActionsByScript(
+    @Param('script') script: string,
+  ): Promise<CorporateActionsResponseDto[]> {
     return this.corporateActionsService.getCorporateActionsByScript(script);
   }
 
@@ -51,7 +70,8 @@ export class CorporateActionsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get AGM data by script',
-    description: 'Retrieve AGM (Annual General Meeting) information for a specific stock script symbol.',
+    description:
+      'Retrieve AGM (Annual General Meeting) information for a specific stock script symbol.',
   })
   @ApiParam({
     name: 'script',
@@ -76,7 +96,9 @@ export class CorporateActionsController {
     status: 404,
     description: 'Not Found - No AGM data found for the specified script',
   })
-  async getAgmByScript(@Param('script') script: string): Promise<AgmResponseDto[]> {
+  async getAgmByScript(
+    @Param('script') script: string,
+  ): Promise<AgmResponseDto[]> {
     return this.corporateActionsService.getAgmByScript(script);
   }
 
@@ -84,7 +106,8 @@ export class CorporateActionsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get single script details by symbol',
-    description: 'Retrieve details for a single script such as sector, paid up shares, address, date of establishment, and website link.',
+    description:
+      'Retrieve details for a single script such as sector, paid up shares, address, date of establishment, and website link.',
   })
   @ApiParam({
     name: 'script',
@@ -109,7 +132,9 @@ export class CorporateActionsController {
     status: 404,
     description: 'Not Found - No script found for the specified symbol',
   })
-  async getSingleScript(@Param('script') script: string): Promise<SingleScriptResponseDto[]> {
+  async getSingleScript(
+    @Param('script') script: string,
+  ): Promise<SingleScriptResponseDto[]> {
     return this.corporateActionsService.getSingleScriptBySymbol(script);
   }
 
@@ -117,7 +142,8 @@ export class CorporateActionsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get all listed scripts',
-    description: 'Retrieve all active scripts with security type "OS" (Ordinary Shares).',
+    description:
+      'Retrieve all active scripts with security type "OS" (Ordinary Shares).',
   })
   @ApiResponse({
     status: 200,
@@ -136,4 +162,3 @@ export class CorporateActionsController {
     return this.corporateActionsService.fetchListedScripts();
   }
 }
-

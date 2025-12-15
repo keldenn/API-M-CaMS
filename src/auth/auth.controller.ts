@@ -1,13 +1,38 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
-import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
-import { ChangePasswordDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import {
+  RefreshTokenDto,
+  RefreshTokenResponseDto,
+} from './dto/refresh-token.dto';
+import {
+  ChangePasswordDto,
+  ChangePasswordResponseDto,
+} from './dto/change-password.dto';
 import { ChangePinDto, ChangePinResponseDto } from './dto/change-pin.dto';
-import { GetClientDetailsDto, ClientDetailsResponseDto } from './dto/forgot-password.dto';
-import { ForgotChangePasswordDto, ForgotChangePasswordResponseDto } from './dto/forgot-change-password.dto';
+import {
+  GetClientDetailsDto,
+  ClientDetailsResponseDto,
+} from './dto/forgot-password.dto';
+import {
+  ForgotChangePasswordDto,
+  ForgotChangePasswordResponseDto,
+} from './dto/forgot-change-password.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -21,7 +46,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'User login',
-    description: 'Authenticate user with username and password. Requires role_id = 4.',
+    description:
+      'Authenticate user with username and password. Requires role_id = 4.',
   })
   @ApiResponse({
     status: 200,
@@ -56,7 +82,9 @@ export class AuthController {
     status: 400,
     description: 'Bad Request - Invalid refresh token',
   })
-  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+  async refreshToken(
+    @Body() refreshTokenDto: RefreshTokenDto,
+  ): Promise<RefreshTokenResponseDto> {
     return this.authService.refreshToken(refreshTokenDto);
   }
 
@@ -66,7 +94,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Change user password',
-    description: 'Change user password using current password verification. Requires role_id = 4.',
+    description:
+      'Change user password using current password verification. Requires role_id = 4.',
   })
   @ApiResponse({
     status: 200,
@@ -85,8 +114,14 @@ export class AuthController {
     status: 403,
     description: 'Forbidden - Role_id 4 required to change passwords',
   })
-  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto): Promise<ChangePasswordResponseDto> {
-    return this.authService.changePassword(req.user.username, changePasswordDto);
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<ChangePasswordResponseDto> {
+    return this.authService.changePassword(
+      req.user.username,
+      changePasswordDto,
+    );
   }
 
   @Post('change-pin')
@@ -95,7 +130,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Change user PIN',
-    description: 'Change user PIN using current PIN verification. Requires role_id = 4.',
+    description:
+      'Change user PIN using current PIN verification. Requires role_id = 4.',
   })
   @ApiResponse({
     status: 200,
@@ -114,7 +150,10 @@ export class AuthController {
     status: 403,
     description: 'Forbidden - Role_id 4 required to change PINs',
   })
-  async changePin(@Request() req: any, @Body() changePinDto: ChangePinDto): Promise<ChangePinResponseDto> {
+  async changePin(
+    @Request() req: any,
+    @Body() changePinDto: ChangePinDto,
+  ): Promise<ChangePinResponseDto> {
     return this.authService.changePin(req.user.username, changePinDto);
   }
 
@@ -123,7 +162,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get client details for forgot password',
-    description: 'Retrieve email and phone details using username for password reset verification',
+    description:
+      'Retrieve email and phone details using username for password reset verification',
   })
   @ApiResponse({
     status: 200,
@@ -138,7 +178,9 @@ export class AuthController {
     status: 404,
     description: 'Not Found - Username not found',
   })
-  async getClientDetails(@Body() getClientDetailsDto: GetClientDetailsDto): Promise<ClientDetailsResponseDto> {
+  async getClientDetails(
+    @Body() getClientDetailsDto: GetClientDetailsDto,
+  ): Promise<ClientDetailsResponseDto> {
     return this.authService.getClientDetails(getClientDetailsDto);
   }
 
@@ -147,7 +189,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Change password for forgot password flow',
-    description: 'Change user password without authentication (for forgot password flow)',
+    description:
+      'Change user password without authentication (for forgot password flow)',
   })
   @ApiResponse({
     status: 200,
@@ -158,7 +201,9 @@ export class AuthController {
     status: 400,
     description: 'Bad Request - Invalid input data or validation errors',
   })
-  async forgotChangePassword(@Body() forgotChangePasswordDto: ForgotChangePasswordDto): Promise<ForgotChangePasswordResponseDto> {
+  async forgotChangePassword(
+    @Body() forgotChangePasswordDto: ForgotChangePasswordDto,
+  ): Promise<ForgotChangePasswordResponseDto> {
     return this.authService.forgotChangePassword(forgotChangePasswordDto);
   }
 }

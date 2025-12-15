@@ -17,4 +17,3 @@ export class InvestmentTempResponse {
   @Column({ type: 'varchar', length: 10, nullable: true })
   msg_type: string;
 }
-

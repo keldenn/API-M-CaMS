@@ -3,9 +3,9 @@ import { ApiProperty } from '@nestjs/swagger';
 export class MarketStatsDto {
   @ApiProperty({
     description: 'Total market capitalization',
-    example: 1500000000.50,
+    example: 1500000000.5,
     type: 'number',
-    format: 'float'
+    format: 'float',
   })
   market_cap: number;
 
@@ -13,7 +13,7 @@ export class MarketStatsDto {
     description: 'Total number of listed scripts',
     example: 150,
     type: 'number',
-    format: 'integer'
+    format: 'integer',
   })
   total_listed_scripts: number;
 }

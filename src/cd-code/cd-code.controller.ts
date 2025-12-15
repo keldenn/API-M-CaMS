@@ -1,5 +1,11 @@
 import { Body, Controller, Headers, Post } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CdCodeService } from './cd-code.service';
 import { CdCodeRequestDto } from './dto/cd-code-request.dto';
 import { CdCodeResponseDto } from './dto/cd-code-response.dto';
@@ -20,12 +26,14 @@ export class CdCodeController {
   @ApiHeader({
     name: 'cd_code',
     required: false,
-    description: 'Optional identifier supplied via header (logged for traceability only)',
+    description:
+      'Optional identifier supplied via header (logged for traceability only)',
   })
   @ApiBody({
     type: CdCodeRequestDto,
     required: false,
-    description: 'Request payload containing the client account identifier (cid)',
+    description:
+      'Request payload containing the client account identifier (cid)',
   })
   @ApiOkResponse({
     description: 'List of cd_code details',
@@ -39,4 +47,3 @@ export class CdCodeController {
     return this.cdCodeService.findAll(cdCodeHeader, requestDto);
   }
 }
-

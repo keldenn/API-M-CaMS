@@ -23,4 +23,3 @@ export class Agms {
   @Column()
   status: number;
 }
-

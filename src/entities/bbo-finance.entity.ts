@@ -11,9 +11,21 @@ export class BboFinance {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   amount: number;
 
-  @Column()
-  status: number;
+  @Column({ name: 'user_name', nullable: true })
+  user_name: string;
+
+  @Column({ type: 'text', nullable: true })
+  remarks: string;
 
   @Column()
   flag: number;
+
+  @Column({ name: 'institution_id', nullable: true })
+  institution_id: number;
+
+  @Column({ name: 'flag_id', nullable: true })
+  flag_id: string;
+
+  @Column({ default: 0 })
+  status: number;
 }

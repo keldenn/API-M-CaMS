@@ -42,9 +42,10 @@ export class CdCodeService {
         AND ca.ID = ?;
     `;
 
-    const result = await this.dataSource.query<CdCodeResponseDto[]>(query, [cid]);
+    const result = await this.dataSource.query<CdCodeResponseDto[]>(query, [
+      cid,
+    ]);
 
     return result;
   }
 }
-

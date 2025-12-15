@@ -13,7 +13,12 @@ import { MarketDataModule } from './market-data/market-data.module';
 import { CorporateActionsModule } from './corporate-actions/corporate-actions.module';
 import { RegisterModule } from './register/register.module';
 import { CdCodeModule } from './cd-code/cd-code.module';
-import { getDatabaseConfig, getFinancialDatabaseConfig, getCms22DatabaseConfig } from './config/database.config';
+import { OrdersModule } from './orders/orders.module';
+import {
+  getDatabaseConfig,
+  getFinancialDatabaseConfig,
+  getCms22DatabaseConfig,
+} from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 
 @Module({
@@ -46,6 +51,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     CorporateActionsModule,
     RegisterModule,
     CdCodeModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

@@ -18,7 +18,8 @@ export class RegisterController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Register client account with CD code',
-    description: 'Creates a new client account with CD code generation. Validates ID, checks for duplicates, and generates unique CD code based on broker prefix.',
+    description:
+      'Creates a new client account with CD code generation. Validates ID, checks for duplicates, and generates unique CD code based on broker prefix.',
   })
   @ApiResponse({
     status: 201,
@@ -33,7 +34,9 @@ export class RegisterController {
     status: 409,
     description: 'Conflict - CID or CD Code already exists',
   })
-  async registerCdCode(@Body() registerDto: RegisterCdCodeDto): Promise<RegisterCdCodeResponseDto> {
+  async registerCdCode(
+    @Body() registerDto: RegisterCdCodeDto,
+  ): Promise<RegisterCdCodeResponseDto> {
     return this.registerService.registerCdCode(registerDto);
   }
 
@@ -42,7 +45,8 @@ export class RegisterController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Submit user details for mCaMS registration',
-    description: 'Submits user details before payment processing. Creates a record in api_online_terminal table.',
+    description:
+      'Submits user details before payment processing. Creates a record in api_online_terminal table.',
   })
   @ApiResponse({
     status: 200,
@@ -61,7 +65,8 @@ export class RegisterController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Process payment success for mCaMS registration',
-    description: 'Updates fee_status, inserts into emd and investment_temp_response tables after successful payment.',
+    description:
+      'Updates fee_status, inserts into emd and investment_temp_response tables after successful payment.',
   })
   @ApiResponse({
     status: 200,
@@ -80,7 +85,8 @@ export class RegisterController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Combined mCaMS registration (CD code + payment)',
-    description: 'Registers client account with CD code and processes payment in a single transaction. Both operations must succeed or both fail.',
+    description:
+      'Registers client account with CD code and processes payment in a single transaction. Both operations must succeed or both fail.',
   })
   @ApiResponse({
     status: 200,
@@ -98,4 +104,3 @@ export class RegisterController {
     return this.registerService.registerMcams(dto);
   }
 }
-
