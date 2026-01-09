@@ -3,28 +3,12 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateOrderDto {
   @ApiProperty({ 
-    description: 'Update order API identifier', 
-    example: 'UpdateOrdersAPI' 
-  })
-  @IsString()
-  @IsNotEmpty()
-  UpdateOrdersAPI: string;
-
-  @ApiProperty({ 
     description: 'Username', 
     example: 'user123' 
   })
   @IsString()
   @IsNotEmpty()
   username: string;
-
-  @ApiProperty({ 
-    description: 'Update Broker Username', 
-    example: 'broker123' 
-  })
-  @IsString()
-  @IsNotEmpty()
-  updateBrokerUsername: string;
 
   @ApiProperty({ 
     description: 'Update Participant Code', 

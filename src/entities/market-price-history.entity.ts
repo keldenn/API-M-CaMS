@@ -15,7 +15,7 @@ export class MarketPriceHistory {
   @Column({ name: 'symbol_id' })
   symbol_id: number;
 
-  @Column({ type: 'decimal', precision: 18, scale: 4 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, default: 0.0 })
   price: number;
 
   @Column({ type: 'datetime' })

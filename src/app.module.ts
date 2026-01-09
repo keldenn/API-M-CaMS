@@ -14,6 +14,7 @@ import { CorporateActionsModule } from './corporate-actions/corporate-actions.mo
 import { RegisterModule } from './register/register.module';
 import { CdCodeModule } from './cd-code/cd-code.module';
 import { OrdersModule } from './orders/orders.module';
+import { CompanyModule } from './company/company.module';
 import {
   getDatabaseConfig,
   getFinancialDatabaseConfig,
@@ -52,6 +53,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     RegisterModule,
     CdCodeModule,
     OrdersModule,
+    CompanyModule,
   ],
   controllers: [AppController],
   providers: [

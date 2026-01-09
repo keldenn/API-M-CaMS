@@ -339,11 +339,10 @@ export class OrdersService {
   /**
    * Process Buy Order
    */
-  private async processBuyOrder(dto: NewOrderDto): Promise<string> {
+  private async processBuyOrder(dto: NewOrderDto, brokerUserName: string): Promise<string> {
     const cdCode = dto.CdCode.trim().toUpperCase();
     const symbolId = dto.SymbolId;
     const participantCode = dto.ParticipantCode.trim();
-    const brokerUserName = dto.brokerUsername.trim();
     const userName = dto.UserName.trim();
     const volume = parseFloat(dto.Volume.toString());
     const price = parseFloat(dto.Price.toString().replace(/[^0-9.]/g, ''));
@@ -478,11 +477,10 @@ export class OrdersService {
   /**
    * Process Sell Order
    */
-  private async processSellOrder(dto: NewOrderDto): Promise<string> {
+  private async processSellOrder(dto: NewOrderDto, brokerUserName: string): Promise<string> {
     const cdCode = dto.CdCode.trim().toUpperCase();
     const symbolId = dto.SymbolId;
     const participantCode = dto.ParticipantCode.trim();
-    const brokerUserName = dto.brokerUsername.trim();
     const userName = dto.UserName.trim();
     const volume = parseFloat(dto.Volume.toString());
     const price = parseFloat(dto.Price.toString().replace(/[^0-9.]/g, ''));
@@ -631,10 +629,9 @@ export class OrdersService {
    * Main method to create a new order
    */
   async createNewOrder(dto: NewOrderDto): Promise<OrderResponseDto> {
-    // Validate NewOrder parameter
-    if (dto.NewOrder !== 'MobileOrder') {
-      throw new BadRequestException('Invalid NewOrder parameter');
-    }
+    // Static values
+    const staticNewOrder = 'MobileOrder';
+    const staticBrokerUsername = 'MEMRSEBIT';
 
     // Check user status
     const userStatus = await this.checkUserStatus(dto.UserName);
@@ -644,8 +641,13 @@ export class OrdersService {
       );
     }
 
-    // Log API request
-    const endpoint = JSON.stringify(dto);
+    // Log API request (include static values in log for reference)
+    const logData = {
+      ...dto,
+      NewOrder: staticNewOrder,
+      brokerUsername: staticBrokerUsername,
+    };
+    const endpoint = JSON.stringify(logData);
     await this.logApiRequest(endpoint, dto.UserName);
 
     // Check price limits
@@ -665,9 +667,9 @@ export class OrdersService {
     // Process order based on side
     let message: string;
     if (dto.OrderSide === 'B') {
-      message = await this.processBuyOrder(dto);
+      message = await this.processBuyOrder(dto, staticBrokerUsername);
     } else if (dto.OrderSide === 'S') {
-      message = await this.processSellOrder(dto);
+      message = await this.processSellOrder(dto, staticBrokerUsername);
     } else {
       throw new BadRequestException('Something was wrong, Order Not Placed!');
     }
@@ -766,13 +768,17 @@ export class OrdersService {
    * Main method to update an existing order
    */
   async updateOrder(dto: UpdateOrderDto): Promise<OrderResponseDto> {
-    // Validate UpdateOrdersAPI parameter
-    if (dto.UpdateOrdersAPI !== 'UpdateOrdersAPI') {
-      throw new BadRequestException('Invalid UpdateOrdersAPI parameter');
-    }
+    // Static values
+    const staticUpdateOrdersAPI = 'UpdateOrdersAPI';
+    const staticBrokerUsername = 'MEMRSEBIT';
 
-    // Log API request
-    const endpoint = JSON.stringify(dto);
+    // Log API request (include static values in log for reference)
+    const logData = {
+      ...dto,
+      UpdateOrdersAPI: staticUpdateOrdersAPI,
+      updateBrokerUsername: staticBrokerUsername,
+    };
+    const endpoint = JSON.stringify(logData);
     await this.logApiRequest(endpoint, dto.username);
 
     // Validate inputs are numeric
@@ -782,7 +788,7 @@ export class OrdersService {
       );
     }
 
-    const brokerUserName = dto.updateBrokerUsername.trim();
+    const brokerUserName = staticBrokerUsername;
     const participantCode = dto.updateParticipantCode.trim();
     const orderId = dto.updateOrderId;
     const flagId = dto.updateFlagId;
@@ -1096,13 +1102,15 @@ export class OrdersService {
    * Main method to delete an order
    */
   async deleteOrder(dto: DeleteOrderDto): Promise<OrderResponseDto> {
-    // Validate DeleteOrderAPI parameter
-    if (dto.DeleteOrderAPI !== 'DeleteOrderAPI') {
-      throw new BadRequestException('Invalid DeleteOrderAPI parameter');
-    }
+    // Static value
+    const staticDeleteOrderAPI = 'DeleteOrderAPI';
 
-    // Log API request
-    const endpoint = JSON.stringify(dto);
+    // Log API request (include static value in log for reference)
+    const logData = {
+      ...dto,
+      DeleteOrderAPI: staticDeleteOrderAPI,
+    };
+    const endpoint = JSON.stringify(logData);
     await this.logApiRequest(endpoint, dto.username);
 
     const orderId = dto.deleteOrder_id;

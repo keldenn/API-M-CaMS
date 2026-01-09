@@ -3,14 +3,6 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class DeleteOrderDto {
   @ApiProperty({ 
-    description: 'Delete order API identifier', 
-    example: 'DeleteOrderAPI' 
-  })
-  @IsString()
-  @IsNotEmpty()
-  DeleteOrderAPI: string;
-
-  @ApiProperty({ 
     description: 'Username for API logging', 
     example: 'user123' 
   })

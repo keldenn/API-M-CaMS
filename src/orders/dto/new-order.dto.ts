@@ -10,14 +10,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class NewOrderDto {
   @ApiProperty({
-    description: 'Order type identifier',
-    example: 'MobileOrder',
-  })
-  @IsString()
-  @IsNotEmpty()
-  NewOrder: string;
-
-  @ApiProperty({
     description: 'Price per share',
     example: 100.5,
     minimum: 0.01,
@@ -42,14 +34,6 @@ export class NewOrderDto {
   @IsString()
   @IsNotEmpty()
   ParticipantCode: string;
-
-  @ApiProperty({
-    description: 'Broker Username',
-    example: 'broker123',
-  })
-  @IsString()
-  @IsNotEmpty()
-  brokerUsername: string;
 
   @ApiProperty({
     description: 'User Name',
