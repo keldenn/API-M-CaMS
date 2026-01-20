@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders Changes WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-text {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-value.deleted {
+            color: #dc3545;
+        }
+
+        .stat-value.created {
+            color: #28a745;
+        }
+
+        .stat-value.updated {
+            color: #ffc107;
+        }
+
+        .events-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        .events-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .events-header h2 {
+            color: #333;
+        }
+
+        .clear-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .clear-btn:hover {
+            background: #c82333;
+        }
+
+        .events-log {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+
+        .event-item {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .event-item.deleted {
+            border-left-color: #dc3545;
+        }
+
+        .event-item.created {
+            border-left-color: #28a745;
+        }
+
+        .event-item.updated {
+            border-left-color: #ffc107;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .event-type {
+            font-weight: bold;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .event-time {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .event-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .event-detail {
+            font-size: 13px;
+        }
+
+        .event-detail-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .event-detail-value {
+            color: #333;
+            margin-left: 5px;
+        }
+
+        .no-events {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔔 Orders Changes Monitor</h1>
+            <p>Real-time order change detection via WebSocket (namespace: /ordersChanges)</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <div class="status-text" id="statusText">Disconnected</div>
+            <div style="margin-left: auto; color: #666; font-size: 14px;">
+                Socket ID: <span id="socketId">-</span>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Orders Deleted</div>
+                <div class="stat-value deleted" id="deletedCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Orders Created</div>
+                <div class="stat-value created" id="createdCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Orders Updated</div>
+                <div class="stat-value updated" id="updatedCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Events</div>
+                <div class="stat-value" id="totalCount">0</div>
+            </div>
+        </div>
+
+        <div class="events-container">
+            <div class="events-header">
+                <h2>📋 Event Log</h2>
+                <button class="clear-btn" onclick="clearEvents()">Clear Log</button>
+            </div>
+            <div class="events-log" id="eventsLog">
+                <div class="no-events">Waiting for order changes...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let deletedCount = 0;
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            const serverUrl = 'http://localhost:3000'; // Change if your server is on different port
+            const namespace = '/ordersChanges';
+
+            console.log('Connecting to:', serverUrl + namespace);
+
+            socket = io(serverUrl + namespace, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+            });
+
+            setupEventHandlers();
+        }
+
+        function setupEventHandlers() {
+            // Connection events
+            socket.on('connect', () => {
+                console.log('✅ Connected to ordersChanges namespace');
+                updateStatus(true, socket.id);
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('❌ Disconnected:', reason);
+                updateStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                updateStatus(false);
+            });
+
+            // Initial snapshot
+            socket.on('initialSnapshot', (data) => {
+                console.log('📸 Received initial snapshot:', data);
+                addSystemEvent('Initial Snapshot', `Loaded ${data.count} orders`);
+            });
+
+            // Order change events
+            socket.on('orderDeleted', (event) => {
+                console.log('🗑️ Order Deleted:', event);
+                deletedCount++;
+                addEvent('deleted', event);
+                updateCounts();
+            });
+
+            socket.on('orderCreated', (event) => {
+                console.log('➕ Order Created:', event);
+                createdCount++;
+                addEvent('created', event);
+                updateCounts();
+            });
+
+            socket.on('orderUpdated', (event) => {
+                console.log('🔄 Order Updated:', event);
+                updatedCount++;
+                addEvent('updated', event);
+                updateCounts();
+            });
+
+            // Error event
+            socket.on('error', (error) => {
+                console.error('❌ Error:', error);
+                addSystemEvent('Error', error.message);
+            });
+        }
+
+        function updateStatus(connected, socketId = '-') {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const socketIdEl = document.getElementById('socketId');
+
+            if (connected) {
+                indicator.classList.add('connected');
+                statusText.textContent = 'Connected';
+                socketIdEl.textContent = socketId;
+            } else {
+                indicator.classList.remove('connected');
+                statusText.textContent = 'Disconnected';
+                socketIdEl.textContent = '-';
+            }
+        }
+
+        function addEvent(type, event) {
+            const eventsLog = document.getElementById('eventsLog');
+            
+            // Remove "no events" message if present
+            const noEvents = eventsLog.querySelector('.no-events');
+            if (noEvents) {
+                noEvents.remove();
+            }
+
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item ${type}`;
+
+            const typeEmoji = {
+                deleted: '🗑️',
+                created: '➕',
+                updated: '🔄'
+            };
+
+            const typeName = {
+                deleted: 'Order Deleted',
+                created: 'Order Created',
+                updated: 'Order Updated'
+            };
+
+            let detailsHTML = '';
+            
+            if (type === 'updated' && event.changes) {
+                detailsHTML = `
+                    <div class="event-detail">
+                        <span class="event-detail-label">Price Change:</span>
+                        <span class="event-detail-value">${event.changes.price.old} → ${event.changes.price.new}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Volume Change:</span>
+                        <span class="event-detail-value">${event.changes.volume.old} → ${event.changes.volume.new}</span>
+                    </div>
+                `;
+            } else {
+                detailsHTML = `
+                    <div class="event-detail">
+                        <span class="event-detail-label">Price:</span>
+                        <span class="event-detail-value">${event.price}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Volume:</span>
+                        <span class="event-detail-value">${event.volume}</span>
+                    </div>
+                `;
+            }
+
+            eventItem.innerHTML = `
+                <div class="event-header">
+                    <div class="event-type">${typeEmoji[type]} ${typeName[type]}</div>
+                    <div class="event-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+                </div>
+                <div class="event-details">
+                    <div class="event-detail">
+                        <span class="event-detail-label">Order ID:</span>
+                        <span class="event-detail-value">${event.order_id}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">CD Code:</span>
+                        <span class="event-detail-value">${event.cd_code}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Symbol ID:</span>
+                        <span class="event-detail-value">${event.symbol_id}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Side:</span>
+                        <span class="event-detail-value">${event.side === 'B' ? 'BUY' : 'SELL'}</span>
+                    </div>
+                    ${detailsHTML}
+                </div>
+            `;
+
+            eventsLog.insertBefore(eventItem, eventsLog.firstChild);
+
+            // Keep only last 50 events
+            while (eventsLog.children.length > 50) {
+                eventsLog.removeChild(eventsLog.lastChild);
+            }
+        }
+
+        function addSystemEvent(title, message) {
+            const eventsLog = document.getElementById('eventsLog');
+            
+            const noEvents = eventsLog.querySelector('.no-events');
+            if (noEvents) {
+                noEvents.remove();
+            }
+
+            const eventItem = document.createElement('div');
+            eventItem.className = 'event-item';
+            eventItem.innerHTML = `
+                <div class="event-header">
+                    <div class="event-type">ℹ️ ${title}</div>
+                    <div class="event-time">${new Date().toLocaleTimeString()}</div>
+                </div>
+                <div style="margin-top: 10px; color: #666;">${message}</div>
+            `;
+
+            eventsLog.insertBefore(eventItem, eventsLog.firstChild);
+        }
+
+        function updateCounts() {
+            document.getElementById('deletedCount').textContent = deletedCount;
+            document.getElementById('createdCount').textContent = createdCount;
+            document.getElementById('updatedCount').textContent = updatedCount;
+            document.getElementById('totalCount').textContent = deletedCount + createdCount + updatedCount;
+        }
+
+        function clearEvents() {
+            const eventsLog = document.getElementById('eventsLog');
+            eventsLog.innerHTML = '<div class="no-events">Waiting for order changes...</div>';
+            deletedCount = 0;
+            createdCount = 0;
+            updatedCount = 0;
+            updateCounts();
+        }
+
+        // Start connection on page load
+        connectWebSocket();
+    </script>
+</body>
+</html>
+
+
