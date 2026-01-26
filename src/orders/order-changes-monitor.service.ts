@@ -85,6 +85,11 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
     // Start notification queue processor
     this.startQueueProcessor();
 
+    // Wait a bit for WebSocket gateway to be fully initialized
+    // This prevents race condition where gateway isn't ready yet
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    this.logger.log('⏳ Waited 2 seconds for WebSocket gateway initialization...');
+
     // Connect to our own WebSocket gateway as a client
     this.connectToGateway();
   }
@@ -140,7 +145,8 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
       reconnectionDelay: this.RECONNECT_BASE_DELAY_MS,
       reconnectionDelayMax: 30000, // Max 30 seconds between reconnection attempts
       reconnectionAttempts: Infinity, // Infinite reconnection attempts
-      timeout: 20000, // Connection timeout
+      timeout: 30000, // Connection timeout (increased for slower startup)
+      forceNew: false,
     });
 
     this.setupEventHandlers();
