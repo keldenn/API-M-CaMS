@@ -103,7 +103,7 @@ export class OrderbookService implements OnModuleInit, OnModuleDestroy {
         };
       }
 
-      // Optimized query with top 5 buy/sell levels and cumulative calculations
+      // Optimized query with cumulative calculations (no top 5 filtering)
       const query = `
         WITH PriceLevels AS (
             SELECT DISTINCT 
@@ -113,75 +113,31 @@ export class OrderbookService implements OnModuleInit, OnModuleDestroy {
             INNER JOIN symbol s ON o.symbol_id = s.symbol_id
             WHERE s.symbol = ?
         ),
-        -- Cumulative Buy calculation with ranking
+        -- Cumulative Buy calculation
         CumulativeBuy AS (
             SELECT 
                 pl.symbol_id,
                 pl.price,
-                COALESCE(SUM(o2.buy_vol), 0) as cumulative_buy,
-                ROW_NUMBER() OVER (ORDER BY pl.price DESC) AS buy_rn
+                COALESCE(SUM(o2.buy_vol), 0) as cumulative_buy
             FROM PriceLevels pl
             LEFT JOIN orders o2 ON o2.symbol_id = pl.symbol_id 
                 AND o2.price >= pl.price
             GROUP BY pl.symbol_id, pl.price
             HAVING COALESCE(SUM(o2.buy_vol), 0) > 0
         ),
-        -- Cumulative Sell calculation with ranking  
+        -- Cumulative Sell calculation
         CumulativeSell AS (
             SELECT 
                 pl.symbol_id,
                 pl.price,
-                COALESCE(SUM(o3.sell_vol), 0) as cumulative_sell,
-                ROW_NUMBER() OVER (ORDER BY pl.price ASC) AS sell_rn
+                COALESCE(SUM(o3.sell_vol), 0) as cumulative_sell
             FROM PriceLevels pl
             LEFT JOIN orders o3 ON o3.symbol_id = pl.symbol_id 
                 AND o3.price <= pl.price
             GROUP BY pl.symbol_id, pl.price
             HAVING COALESCE(SUM(o3.sell_vol), 0) > 0
-        ),
-        -- Get total buy volume (lowest price's cumulative)
-        TotalBuyVol AS (
-            SELECT cumulative_buy AS total_buy_vol
-            FROM CumulativeBuy
-            WHERE price = (SELECT MIN(price) FROM CumulativeBuy WHERE cumulative_buy > 0)
-            LIMIT 1
-        ),
-        -- Get total sell volume (highest price's cumulative)
-        TotalSellVol AS (
-            SELECT cumulative_sell AS total_sell_vol
-            FROM CumulativeSell
-            WHERE price = (SELECT MAX(price) FROM CumulativeSell WHERE cumulative_sell > 0)
-            LIMIT 1
-        ),
-        -- Filtered Buy results (top 5 with modified 5th row)
-        FilteredBuy AS (
-            SELECT 
-                cb.symbol_id,
-                cb.price,
-                CASE 
-                    WHEN cb.buy_rn <= 4 THEN cb.cumulative_buy
-                    ELSE (SELECT total_buy_vol FROM TotalBuyVol)
-                END AS cumulative_buy,
-                cb.buy_rn,
-                'buy' as side
-            FROM CumulativeBuy cb
-            WHERE cb.buy_rn <= 5
-        ),
-        -- Filtered Sell results (top 5 with modified 5th row)
-        FilteredSell AS (
-            SELECT 
-                cs.symbol_id,
-                cs.price,
-                CASE 
-                    WHEN cs.sell_rn <= 4 THEN cs.cumulative_sell
-                    ELSE (SELECT total_sell_vol FROM TotalSellVol)
-                END AS cumulative_sell,
-                cs.sell_rn,
-                'sell' as side
-            FROM CumulativeSell cs
-            WHERE cs.sell_rn <= 5
         )
-        -- Main query combining filtered buy and sell using UNION
+        -- Main query combining buy and sell using UNION
         SELECT 
             price,
             symbol_id,
@@ -194,27 +150,23 @@ export class OrderbookService implements OnModuleInit, OnModuleDestroy {
         FROM (
             -- Buy side with NULL sell values
             SELECT 
-                fb.price,
-                fb.symbol_id,
-                fb.cumulative_buy as buy_vol,
+                cb.price,
+                cb.symbol_id,
+                cb.cumulative_buy as buy_vol,
                 NULL as sell_vol,
-                fb.buy_rn as rn,
-                fb.side,
-                fb.price as sort_price
-            FROM FilteredBuy fb
+                cb.price as sort_price
+            FROM CumulativeBuy cb
             
             UNION ALL
             
             -- Sell side with NULL buy values
             SELECT 
-                fs.price,
-                fs.symbol_id,
+                cs.price,
+                cs.symbol_id,
                 NULL as buy_vol,
-                fs.cumulative_sell as sell_vol,
-                fs.sell_rn as rn,
-                fs.side,
-                fs.price as sort_price
-            FROM FilteredSell fs
+                cs.cumulative_sell as sell_vol,
+                cs.price as sort_price
+            FROM CumulativeSell cs
         ) combined
         ORDER BY sort_price DESC
       `;

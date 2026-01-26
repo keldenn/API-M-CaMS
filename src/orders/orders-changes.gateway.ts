@@ -10,6 +10,13 @@ import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
+import { FcmService } from '../fcm/fcm.service';
+import {
+  DiscoveredPriceInfo,
+  AffectedUser,
+  PriceDiscoveredEvent,
+  PriceDiscoveryResult,
+} from './dto/price-discovery.dto';
 
 interface OrderSnapshot {
   order_id: number;
@@ -44,12 +51,19 @@ export class OrdersChangesGateway
   private monitoringInterval: NodeJS.Timeout | null = null;
   private readonly POLLING_INTERVAL_MS = 5000; // 5 seconds
   private previousOrdersSnapshot = new Map<number, OrderSnapshot>();
+  
+  // Price Discovery tracking
+  private discoveredPrices = new Map<number, DiscoveredPriceInfo>(); // key: symbol_id
+  private notificationCooldown = new Map<string, Date>(); // key: cd_code+symbol_id+price
+  private readonly NOTIFICATION_COOLDOWN_MS = 300000; // 5 minutes cooldown
 
   constructor(
     @InjectDataSource('cms22')
     private readonly cms22DataSource: DataSource,
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
+    @Inject(forwardRef(() => FcmService))
+    private readonly fcmService: FcmService,
   ) {}
 
   afterInit(server: Server) {
@@ -240,6 +254,9 @@ export class OrdersChangesGateway
 
       // Update snapshot
       this.previousOrdersSnapshot = currentOrdersMap;
+
+      // Check for price discovery changes for all active symbols
+      await this.checkPriceDiscoveryChanges();
     } catch (error) {
       this.logger.error('Error checking for order changes:', error);
     }
@@ -353,6 +370,381 @@ export class OrdersChangesGateway
    */
   isMonitoring(): boolean {
     return this.monitoringInterval !== null;
+  }
+
+  // ============================================================================
+  // PRICE DISCOVERY METHODS
+  // ============================================================================
+
+  /**
+   * Check for price discovery changes across all active symbols
+   * This runs after every order change check cycle
+   */
+  private async checkPriceDiscoveryChanges(): Promise<void> {
+    try {
+      // Get all unique symbol_ids that have orders
+      const symbolQuery = `
+        SELECT DISTINCT symbol_id 
+        FROM orders 
+        WHERE (buy_vol > 0 OR sell_vol > 0)
+      `;
+      const symbols = await this.cms22DataSource.query(symbolQuery);
+
+      for (const { symbol_id } of symbols) {
+        await this.processPriceDiscoveryForSymbol(symbol_id);
+      }
+    } catch (error) {
+      this.logger.error('Error checking price discovery changes:', error);
+    }
+  }
+
+  /**
+   * Process price discovery for a specific symbol
+   */
+  private async processPriceDiscoveryForSymbol(
+    symbolId: number,
+  ): Promise<void> {
+    try {
+      // Calculate current discovered price
+      const discoveryResult = await this.calculateDiscoveredPrice(symbolId);
+
+      if (!discoveryResult.hasDiscoveredPrice) {
+        // No discovered price found, clear if previously existed
+        if (this.discoveredPrices.has(symbolId)) {
+          this.logger.log(
+            `⚠️  No discovered price for symbol_id ${symbolId} (previously had one)`,
+          );
+          this.discoveredPrices.delete(symbolId);
+        }
+        return;
+      }
+
+      const currentPrice = discoveryResult.discoveredPrice;
+      const previousInfo = this.discoveredPrices.get(symbolId);
+
+      // Check if discovered price has changed or is new
+      const hasChanged =
+        !previousInfo || previousInfo.price !== currentPrice;
+
+      if (hasChanged) {
+        this.logger.log(
+          `🎯 Price Discovery Change Detected for symbol_id ${symbolId}:`,
+        );
+        this.logger.log(
+          `   Previous: ${previousInfo?.price || 'none'} → Current: ${currentPrice}`,
+        );
+        this.logger.log(
+          `   Max Tradable: ${discoveryResult.maxTradable.toLocaleString()}`,
+        );
+
+        // Store new discovered price info
+        const discoveredPriceInfo: DiscoveredPriceInfo = {
+          symbol_id: symbolId,
+          price: currentPrice,
+          maxTradable: discoveryResult.maxTradable,
+          buyVolume: discoveryResult.buyVolume,
+          sellVolume: discoveryResult.sellVolume,
+          discoveredAt: new Date(),
+        };
+        this.discoveredPrices.set(symbolId, discoveredPriceInfo);
+
+        // Identify affected users and send notifications
+        await this.notifyAffectedUsers(discoveredPriceInfo);
+
+        // Broadcast price discovered event to all connected clients
+        await this.broadcastPriceDiscovered(discoveredPriceInfo);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error processing price discovery for symbol_id ${symbolId}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Calculate the discovered price for a symbol
+   * Uses the same logic as orderbook service: price with max tradable volume
+   */
+  private async calculateDiscoveredPrice(
+    symbolId: number,
+  ): Promise<PriceDiscoveryResult> {
+    try {
+      const query = `
+        WITH PriceLevels AS (
+          SELECT 
+            price,
+            SUM(CASE WHEN side = 'B' THEN COALESCE(buy_vol, 0) ELSE 0 END) as total_buy,
+            SUM(CASE WHEN side = 'S' THEN COALESCE(sell_vol, 0) ELSE 0 END) as total_sell
+          FROM orders
+          WHERE symbol_id = ?
+          GROUP BY price
+        )
+        SELECT 
+          price,
+          total_buy as buy_volume,
+          total_sell as sell_volume,
+          LEAST(total_buy, total_sell) as max_tradable
+        FROM PriceLevels
+        WHERE total_buy > 0 AND total_sell > 0
+        ORDER BY max_tradable DESC, price DESC
+        LIMIT 1
+      `;
+
+      const result = await this.cms22DataSource.query(query, [symbolId]);
+
+      if (result.length === 0) {
+        return {
+          hasDiscoveredPrice: false,
+          discoveredPrice: '0',
+          maxTradable: 0,
+          buyVolume: 0,
+          sellVolume: 0,
+        };
+      }
+
+      const discovered = result[0];
+      return {
+        hasDiscoveredPrice: true,
+        discoveredPrice: discovered.price,
+        maxTradable: parseInt(discovered.max_tradable, 10) || 0,
+        buyVolume: parseInt(discovered.buy_volume, 10) || 0,
+        sellVolume: parseInt(discovered.sell_volume, 10) || 0,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error calculating discovered price for symbol_id ${symbolId}:`,
+        error,
+      );
+      return {
+        hasDiscoveredPrice: false,
+        discoveredPrice: '0',
+        maxTradable: 0,
+        buyVolume: 0,
+        sellVolume: 0,
+      };
+    }
+  }
+
+  /**
+   * Identify users whose orders are at the discovered price and send notifications
+   */
+  private async notifyAffectedUsers(
+    discoveredInfo: DiscoveredPriceInfo,
+  ): Promise<void> {
+    try {
+      const affectedUsers = await this.getAffectedUsers(
+        discoveredInfo.symbol_id,
+        discoveredInfo.price,
+      );
+
+      if (affectedUsers.length === 0) {
+        this.logger.warn(
+          `No affected users found for symbol_id ${discoveredInfo.symbol_id} at price ${discoveredInfo.price}`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `📤 Sending notifications to ${affectedUsers.length} affected user(s)`,
+      );
+
+      // Log aggregated volumes for transparency
+      const totalBuyVol = affectedUsers
+        .filter((u) => u.side === 'B')
+        .reduce((sum, u) => sum + u.volume, 0);
+      const totalSellVol = affectedUsers
+        .filter((u) => u.side === 'S')
+        .reduce((sum, u) => sum + u.volume, 0);
+      
+      if (totalBuyVol > 0) {
+        this.logger.log(`   📊 Total BUY volume notified: ${totalBuyVol.toLocaleString()}`);
+      }
+      if (totalSellVol > 0) {
+        this.logger.log(`   📊 Total SELL volume notified: ${totalSellVol.toLocaleString()}`);
+      }
+
+      // Get symbol name for better notification message
+      const symbolName = await this.getSymbolName(discoveredInfo.symbol_id);
+
+      // Send notifications to each affected user (with cooldown check)
+      const notificationPromises = affectedUsers.map((user) =>
+        this.sendPriceDiscoveryNotification(
+          user,
+          discoveredInfo,
+          symbolName || `Symbol #${discoveredInfo.symbol_id}`,
+        ),
+      );
+
+      await Promise.allSettled(notificationPromises);
+    } catch (error) {
+      this.logger.error('Error notifying affected users:', error);
+    }
+  }
+
+  /**
+   * Get all users with orders at or better than the discovered price level
+   * Uses cumulative matching logic:
+   * - SELL orders: price <= discovered_price (sellers willing to sell lower will match)
+   * - BUY orders: price >= discovered_price (buyers willing to pay more will match)
+   * Aggregates multiple orders from the same user at the same price
+   */
+  private async getAffectedUsers(
+    symbolId: number,
+    price: string,
+  ): Promise<AffectedUser[]> {
+    try {
+      // Aggregate orders by cd_code and side to get total volume per user
+      // Use cumulative matching: SELL <= price, BUY >= price
+      const query = `
+        SELECT 
+          cd_code,
+          side,
+          price,
+          SUM(CASE 
+            WHEN side = 'B' THEN buy_vol 
+            ELSE sell_vol 
+          END) as total_volume,
+          GROUP_CONCAT(order_id) as order_ids
+        FROM orders
+        WHERE symbol_id = ?
+          AND (
+            (side = 'B' AND price >= ? AND buy_vol > 0) OR 
+            (side = 'S' AND price <= ? AND sell_vol > 0)
+          )
+        GROUP BY cd_code, side, price
+      `;
+
+      const results = await this.cms22DataSource.query(query, [symbolId, price, price]);
+
+      return results.map((row) => ({
+        cd_code: row.cd_code,
+        order_id: parseInt(row.order_ids.split(',')[0], 10), // Use first order_id for reference
+        side: row.side as 'B' | 'S',
+        volume: parseInt(row.total_volume, 10) || 0,
+        price: row.price,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Error getting affected users for symbol_id ${symbolId}:`,
+        error,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get symbol name from symbol_id
+   */
+  private async getSymbolName(symbolId: number): Promise<string | null> {
+    try {
+      const query = `SELECT symbol FROM symbol WHERE symbol_id = ? LIMIT 1`;
+      const result = await this.cms22DataSource.query(query, [symbolId]);
+      return result.length > 0 ? result[0].symbol : null;
+    } catch (error) {
+      this.logger.error(`Error getting symbol name for ${symbolId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Send FCM notification to a user about price discovery
+   */
+  private async sendPriceDiscoveryNotification(
+    user: AffectedUser,
+    discoveredInfo: DiscoveredPriceInfo,
+    symbolName: string,
+  ): Promise<void> {
+    try {
+      // Check cooldown to prevent notification spam
+      const cooldownKey = `${user.cd_code}_${discoveredInfo.symbol_id}_${discoveredInfo.price}`;
+      const lastNotification = this.notificationCooldown.get(cooldownKey);
+
+      if (lastNotification) {
+        const timeSinceLastNotification =
+          Date.now() - lastNotification.getTime();
+        if (timeSinceLastNotification < this.NOTIFICATION_COOLDOWN_MS) {
+          this.logger.debug(
+            `Skipping notification for ${user.cd_code} (cooldown: ${Math.round(timeSinceLastNotification / 1000)}s ago)`,
+          );
+          return;
+        }
+      }
+
+      // Send notification via FCM service
+      await this.fcmService.sendPriceDiscoveredNotification(
+        user.cd_code,
+        {
+          symbol_id: discoveredInfo.symbol_id,
+          symbol_name: symbolName,
+          price: discoveredInfo.price,
+          side: user.side,
+          volume: user.volume,
+          order_id: user.order_id,
+          maxTradable: discoveredInfo.maxTradable,
+        },
+      );
+
+      // Update cooldown timestamp
+      this.notificationCooldown.set(cooldownKey, new Date());
+
+      this.logger.log(
+        `✅ Sent price discovery notification to cd_code: ${user.cd_code} (${user.side === 'B' ? 'BUY' : 'SELL'} ${user.volume.toLocaleString()} @ ${discoveredInfo.price})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error sending notification to ${user.cd_code}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Broadcast price discovered event to all connected WebSocket clients
+   */
+  private async broadcastPriceDiscovered(
+    discoveredInfo: DiscoveredPriceInfo,
+  ): Promise<void> {
+    try {
+      const symbolName = await this.getSymbolName(discoveredInfo.symbol_id);
+
+      const event: PriceDiscoveredEvent = {
+        type: 'priceDiscovered',
+        symbol_id: discoveredInfo.symbol_id,
+        symbol_name: symbolName || undefined,
+        price: discoveredInfo.price,
+        maxTradable: discoveredInfo.maxTradable,
+        buyVolume: discoveredInfo.buyVolume,
+        sellVolume: discoveredInfo.sellVolume,
+        affectedUsersCount:
+          (await this.getAffectedUsers(discoveredInfo.symbol_id, discoveredInfo.price))
+            .length,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.server.emit('priceDiscovered', event);
+
+      this.logger.log(
+        `📡 Broadcasted priceDiscovered event for symbol_id ${discoveredInfo.symbol_id}`,
+      );
+    } catch (error) {
+      this.logger.error('Error broadcasting price discovered event:', error);
+    }
+  }
+
+  /**
+   * Get current discovered prices (for debugging/monitoring)
+   */
+  getDiscoveredPrices(): Map<number, DiscoveredPriceInfo> {
+    return this.discoveredPrices;
+  }
+
+  /**
+   * Clear notification cooldown cache (useful for testing)
+   */
+  clearNotificationCooldown(): void {
+    this.notificationCooldown.clear();
+    this.logger.log('🧹 Cleared notification cooldown cache');
   }
 }
 

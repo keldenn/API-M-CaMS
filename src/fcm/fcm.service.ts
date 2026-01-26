@@ -293,6 +293,50 @@ export class FcmService implements OnModuleInit {
 
     await this.sendToCdCode(cdCode, payload);
   }
+
+  /**
+   * Send price discovery notification
+   * Notifies user when their order matches at the discovered price
+   */
+  async sendPriceDiscoveredNotification(
+    cdCode: string,
+    discoveryData: {
+      symbol_id: number;
+      symbol_name: string;
+      price: string;
+      side: 'B' | 'S';
+      volume: number;
+      order_id: number;
+      maxTradable: number;
+    },
+  ): Promise<void> {
+    const sideText = discoveryData.side === 'B' ? 'BUY' : 'SELL';
+    const title = '🎯 Order Matched at Discovered Price!';
+    const body = `Your ${sideText} order for ${discoveryData.symbol_name} at ₹${discoveryData.price} has been matched! Volume: ${discoveryData.volume.toLocaleString()}`;
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      data: {
+        type: 'price_discovered',
+        symbol_id: discoveryData.symbol_id.toString(),
+        symbol_name: discoveryData.symbol_name,
+        price: discoveryData.price,
+        side: discoveryData.side,
+        volume: discoveryData.volume.toString(),
+        order_id: discoveryData.order_id.toString(),
+        max_tradable: discoveryData.maxTradable.toString(),
+        cd_code: cdCode,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    this.logger.log(
+      `📤 Sending price discovery notification to cd_code: ${cdCode} (${sideText} ${discoveryData.volume} @ ${discoveryData.price})`,
+    );
+
+    await this.sendToCdCode(cdCode, payload);
+  }
 }
 
 

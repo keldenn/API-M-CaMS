@@ -114,6 +114,10 @@
             color: #ffc107;
         }
 
+        .stat-value.discovered {
+            color: #17a2b8;
+        }
+
         .events-container {
             background: white;
             border-radius: 10px;
@@ -187,6 +191,11 @@
 
         .event-item.updated {
             border-left-color: #ffc107;
+        }
+
+        .event-item.discovered {
+            border-left-color: #17a2b8;
+            background: linear-gradient(to right, #e0f7fa 0%, #ffffff 100%);
         }
 
         .event-header {
@@ -265,6 +274,10 @@
                 <div class="stat-value updated" id="updatedCount">0</div>
             </div>
             <div class="stat-card">
+                <div class="stat-label">Price Discoveries</div>
+                <div class="stat-value discovered" id="discoveredCount">0</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-label">Total Events</div>
                 <div class="stat-value" id="totalCount">0</div>
             </div>
@@ -286,6 +299,7 @@
         let deletedCount = 0;
         let createdCount = 0;
         let updatedCount = 0;
+        let discoveredCount = 0;
 
         // Connect to WebSocket
         function connectWebSocket() {
@@ -346,6 +360,14 @@
                 console.log('🔄 Order Updated:', event);
                 updatedCount++;
                 addEvent('updated', event);
+                updateCounts();
+            });
+
+            // Price discovery event
+            socket.on('priceDiscovered', (event) => {
+                console.log('🎯 Price Discovered:', event);
+                discoveredCount++;
+                addPriceDiscoveryEvent(event);
                 updateCounts();
             });
 
@@ -481,7 +503,68 @@
             document.getElementById('deletedCount').textContent = deletedCount;
             document.getElementById('createdCount').textContent = createdCount;
             document.getElementById('updatedCount').textContent = updatedCount;
-            document.getElementById('totalCount').textContent = deletedCount + createdCount + updatedCount;
+            document.getElementById('discoveredCount').textContent = discoveredCount;
+            document.getElementById('totalCount').textContent = deletedCount + createdCount + updatedCount + discoveredCount;
+        }
+
+        function addPriceDiscoveryEvent(event) {
+            const eventsLog = document.getElementById('eventsLog');
+            
+            // Remove "no events" message if present
+            const noEvents = eventsLog.querySelector('.no-events');
+            if (noEvents) {
+                noEvents.remove();
+            }
+
+            const eventItem = document.createElement('div');
+            eventItem.className = 'event-item discovered';
+
+            eventItem.innerHTML = `
+                <div class="event-header">
+                    <div class="event-type">🎯 Price Discovery Match!</div>
+                    <div class="event-time">${new Date(event.timestamp).toLocaleTimeString()}</div>
+                </div>
+                <div class="event-details">
+                    <div class="event-detail">
+                        <span class="event-detail-label">Symbol ID:</span>
+                        <span class="event-detail-value">${event.symbol_id}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Symbol:</span>
+                        <span class="event-detail-value">${event.symbol_name || 'N/A'}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Discovered Price:</span>
+                        <span class="event-detail-value" style="font-weight: bold; color: #17a2b8;">₹${event.price}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Max Tradable:</span>
+                        <span class="event-detail-value">${event.maxTradable.toLocaleString()}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Buy Volume:</span>
+                        <span class="event-detail-value" style="color: #28a745;">${event.buyVolume.toLocaleString()}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Sell Volume:</span>
+                        <span class="event-detail-value" style="color: #dc3545;">${event.sellVolume.toLocaleString()}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="event-detail-label">Affected Users:</span>
+                        <span class="event-detail-value">${event.affectedUsersCount}</span>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 5px; font-size: 12px;">
+                    💡 <strong>Note:</strong> FCM notifications sent to all users with orders at this price level.
+                </div>
+            `;
+
+            eventsLog.insertBefore(eventItem, eventsLog.firstChild);
+
+            // Keep only last 50 events
+            while (eventsLog.children.length > 50) {
+                eventsLog.removeChild(eventsLog.lastChild);
+            }
         }
 
         function clearEvents() {
@@ -490,6 +573,7 @@
             deletedCount = 0;
             createdCount = 0;
             updatedCount = 0;
+            discoveredCount = 0;
             updateCounts();
         }
 
