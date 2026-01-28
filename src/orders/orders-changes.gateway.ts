@@ -256,7 +256,14 @@ export class OrdersChangesGateway
       this.previousOrdersSnapshot = currentOrdersMap;
 
       // Check for price discovery changes for all active symbols
+      // This recalculates discovered prices (new orders are now included in the calculation)
       await this.checkPriceDiscoveryChanges();
+
+      // After price discovery is updated, check if any new orders match discovered prices
+      // This ensures users get notified when they place an order at an existing discovered price
+      if (createdOrders.length > 0) {
+        await this.checkNewOrdersForPriceDiscovery(createdOrders);
+      }
     } catch (error) {
       this.logger.error('Error checking for order changes:', error);
     }
@@ -375,6 +382,68 @@ export class OrdersChangesGateway
   // ============================================================================
   // PRICE DISCOVERY METHODS
   // ============================================================================
+
+  /**
+   * Check if newly created orders match existing discovered prices
+   * This ensures users get notified when they place an order at an existing discovered price
+   */
+  private async checkNewOrdersForPriceDiscovery(
+    newOrders: OrderSnapshot[],
+  ): Promise<void> {
+    try {
+      for (const order of newOrders) {
+        const discoveredInfo = this.discoveredPrices.get(order.symbol_id);
+        
+        if (!discoveredInfo) {
+          // No discovered price for this symbol yet
+          continue;
+        }
+
+        // Check if this order matches the discovered price
+        const orderPrice = parseFloat(order.price);
+        const discoveredPrice = parseFloat(discoveredInfo.price);
+        const orderVolume = order.side === 'B' ? (order.buy_vol || 0) : (order.sell_vol || 0);
+
+        if (orderVolume === 0) {
+          continue; // Skip orders with zero volume
+        }
+
+        // Check if order matches discovered price using cumulative matching logic:
+        // - BUY orders: price >= discovered_price (willing to pay more will match)
+        // - SELL orders: price <= discovered_price (willing to sell lower will match)
+        const matchesPrice =
+          (order.side === 'B' && orderPrice >= discoveredPrice) ||
+          (order.side === 'S' && orderPrice <= discoveredPrice);
+
+        if (matchesPrice) {
+          this.logger.log(
+            `🎯 New order ${order.order_id} (${order.cd_code}) matches existing discovered price ${discoveredInfo.price} for symbol_id ${order.symbol_id}`,
+          );
+
+          // Get symbol name
+          const symbolName = await this.getSymbolName(order.symbol_id);
+
+          // Create affected user object
+          const affectedUser: AffectedUser = {
+            cd_code: order.cd_code,
+            order_id: order.order_id,
+            side: order.side as 'B' | 'S',
+            volume: orderVolume,
+            price: order.price,
+          };
+
+          // Send notification (cooldown check is handled inside sendPriceDiscoveryNotification)
+          await this.sendPriceDiscoveryNotification(
+            affectedUser,
+            discoveredInfo,
+            symbolName || `Symbol #${order.symbol_id}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error checking new orders for price discovery:', error);
+    }
+  }
 
   /**
    * Check for price discovery changes across all active symbols
