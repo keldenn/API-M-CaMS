@@ -46,6 +46,34 @@ export class CdCodeService {
       cid,
     ]);
 
-    return result;
+    // Query users table to check for has_mcams and is_mcams_active
+    const usersQuery = `
+      SELECT 
+        role_id,
+        status
+      FROM 
+        users
+      WHERE 
+        cid = ?;
+    `;
+
+    const users = await this.dataSource.query(usersQuery, [cid]);
+
+    // Check if any user has role_id = 4
+    const has_mcams = users.some(
+      (user: any) => Number(user.role_id) === 4,
+    );
+
+    // Check if any user has status = 1
+    const is_mcams_active = users.some(
+      (user: any) => Number(user.status) === 1,
+    );
+
+    // Add the new fields to each result
+    return result.map((item) => ({
+      ...item,
+      has_mcams,
+      is_mcams_active,
+    }));
   }
 }
