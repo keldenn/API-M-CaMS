@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  Matches,
+} from 'class-validator';
 
 export class PaymentSuccessOtDto {
   @ApiProperty({ description: 'Order number', example: 'OT20251126001' })
@@ -51,4 +57,15 @@ export class PaymentSuccessOtDto {
   @IsNumber()
   @IsOptional()
   fee?: number;
+
+  @ApiProperty({
+    description:
+      '4-digit PIN to create the mCaMS user account (bcrypt-hashed before storing).',
+    example: '1234',
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d{4}$/, { message: 'password must be exactly 4 digits' })
+  password: string;
 }

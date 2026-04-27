@@ -399,6 +399,80 @@ export class RegisterService {
         [dto.orderNo, dto.fee || 0],
       );
 
+      // Step 5: Create users + linkuser for mCaMS (same as /register/mcams)
+      // Username: participant_code + CID
+      const participantCode = String((customer as any).participant_code || '');
+      const cid = String((customer as any).cid || dto.cidNo || '').trim();
+      const cdCode = String((customer as any).cd_code || dto.cd_code || '').trim();
+      const fullName = String((customer as any).name || dto.name || '').trim();
+      const phone = String((customer as any).phone || dto.phoneNo || '').trim();
+      const email = String((customer as any).email || dto.email || '').trim();
+      const address = String((customer as any).address || dto.address || '').trim();
+      const brokerUserName = String(
+        (customer as any).broker_user || dto.userName || '',
+      ).trim();
+
+      if (!participantCode) {
+        throw new Error('participant_code missing for this order');
+      }
+      if (!cid) {
+        throw new Error('cid missing for this order');
+      }
+      if (!cdCode) {
+        throw new Error('cd_code missing for this order');
+      }
+      if (!fullName) {
+        throw new Error('name missing for this order');
+      }
+
+      const username = participantCode + cid;
+
+      const existingUsers = await queryRunner.query(
+        `SELECT user_id FROM users WHERE username = ? LIMIT 1`,
+        [username],
+      );
+
+      if (!existingUsers || existingUsers.length === 0) {
+        const hashedPassword = await bcrypt.hash(String(dto.password), 12);
+        const userRoleId = 4; // Static role_id = 4
+        const userStatus = 1; // Active status
+        const logCheck = 0; // Default log_check
+        const isBcrypt = 1; // Static is_bcrypt = 1
+        const amount = dto.fee ?? (customer as any).app_fee ?? 0;
+        const amtStatus = 1; // Paid
+        const isPin = 1; // Static isPin = 1
+
+        await queryRunner.query(
+          `INSERT INTO users (name, username, password, role_id, participant_code, phone, email, status, log_check, address, cid, is_bcrypt, cd_code, amount, amt_status, orderNo, isPin)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            fullName,
+            username,
+            hashedPassword,
+            userRoleId,
+            participantCode,
+            phone || null,
+            email || null,
+            userStatus,
+            logCheck,
+            address || '',
+            cid,
+            isBcrypt,
+            cdCode,
+            amount,
+            amtStatus,
+            dto.orderNo,
+            isPin,
+          ],
+        );
+
+        await queryRunner.query(
+          `INSERT INTO linkuser (participant_code, client_code, username, broker_user_name)
+           VALUES (?, ?, ?, ?)`,
+          [participantCode, cdCode, username, brokerUserName || null],
+        );
+      }
+
       // Commit transaction
       await queryRunner.commitTransaction();
 
