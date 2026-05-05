@@ -5,9 +5,12 @@ import { HoldingsService } from './holdings.service';
 import { CdsHolding } from '../entities/cds-holding.entity';
 import { Symbol } from '../entities/symbol.entity';
 import { BboFinance } from '../entities/bbo-finance.entity';
+import { MarketPrice } from '../entities/market-price.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CdsHolding, Symbol, BboFinance])],
+  imports: [
+    TypeOrmModule.forFeature([CdsHolding, Symbol, BboFinance, MarketPrice]),
+  ],
   controllers: [HoldingsController],
   providers: [HoldingsService],
   exports: [HoldingsService],

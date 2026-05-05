@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CdsHolding } from '../entities/cds-holding.entity';
 import { Symbol } from '../entities/symbol.entity';
 import { BboFinance } from '../entities/bbo-finance.entity';
+import { MarketPrice } from '../entities/market-price.entity';
 import { HoldingsResponseDto } from './dto/holdings-response.dto';
 import { PortfolioStatsDto } from './dto/portfolio-stats.dto';
 
@@ -16,6 +17,8 @@ export class HoldingsService {
     private symbolRepository: Repository<Symbol>,
     @InjectRepository(BboFinance)
     private bboFinanceRepository: Repository<BboFinance>,
+    @InjectRepository(MarketPrice)
+    private marketPriceRepository: Repository<MarketPrice>,
   ) {}
 
   async getHoldingsByCdCode(cdCode: string): Promise<HoldingsResponseDto[]> {
@@ -60,7 +63,7 @@ export class HoldingsService {
     try {
       const query = `
         SELECT 
-          SUM(CASE WHEN f.status = 1 THEN f.amount ELSE 0 END) AS tot,
+          SUM(CASE WHEN f.status = 1 THEN f.amount ELSE 0 END) AS totExposure,
           SUM(CASE WHEN f.status = 1 AND f.flag = 3 THEN f.amount * -1 ELSE 0 END) AS totbuy,
           SUM(CASE WHEN f.status = 1 AND f.flag = 2 THEN f.amount ELSE 0 END) AS totsell,
           (
@@ -69,23 +72,43 @@ export class HoldingsService {
             JOIN linkuser lu2 ON h.cd_code = lu2.client_code 
             WHERE lu2.username = ? 
               AND h.volume > 0
-          ) AS total_holdings_count
+          ) AS total_holdings_count,
+          (
+            SELECT COALESCE(SUM(h.volume * mp.market_price), 0)
+            FROM cds_holding h
+            JOIN linkuser lu3 ON h.cd_code = lu3.client_code
+            JOIN (
+              SELECT mp1.symbol_id, mp1.market_price
+              FROM market_price mp1
+              INNER JOIN (
+                SELECT symbol_id, MAX(date) AS latest_date
+                FROM market_price
+                GROUP BY symbol_id
+              ) latest
+                ON latest.symbol_id = mp1.symbol_id
+                AND latest.latest_date = mp1.date
+            ) mp ON mp.symbol_id = h.symbol_id
+            WHERE lu3.username = ?
+              AND h.volume > 0
+          ) AS current_market_value
         FROM bbo_finance f
         JOIN linkuser l ON l.client_code = f.cd_code
         WHERE l.username = ?
       `;
 
-      const result = await this.bboFinanceRepository.query(query, [
+      const result = await this.marketPriceRepository.query(query, [
+        username,
         username,
         username,
       ]);
       const stats = result[0] || {};
 
       return {
-        tot: parseFloat(stats.tot) || 0,
+        totExposure: parseFloat(stats.totExposure) || 0,
         totbuy: parseFloat(stats.totbuy) || 0,
         totsell: parseFloat(stats.totsell) || 0,
         total_holdings_count: parseInt(stats.total_holdings_count) || 0,
+        current_market_value: parseFloat(stats.current_market_value) || 0,
       };
     } catch (error) {
       console.error('Error fetching portfolio stats:', error);
