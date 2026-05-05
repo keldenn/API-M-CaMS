@@ -26,6 +26,7 @@ export class HoldingsService {
       const query = `
         SELECT 
           s.symbol, 
+          s.security_type,
           h.volume, 
           h.pending_out_vol, 
           h.pending_in_vol, 
@@ -46,6 +47,7 @@ export class HoldingsService {
 
       return result.map((row) => ({
         symbol: row.symbol,
+        security_type: row.security_type,
         volume: parseFloat(row.volume) || 0,
         pending_out_vol: parseFloat(row.pending_out_vol) || 0,
         pending_in_vol: parseFloat(row.pending_in_vol) || 0,

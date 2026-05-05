@@ -1,5 +1,6 @@
 export class HoldingsResponseDto {
   symbol: string;
+  security_type: string;
   volume: number;
   pending_out_vol: number;
   pending_in_vol: number;
