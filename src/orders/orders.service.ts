@@ -6,6 +6,10 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { DeleteOrderDto } from './dto/delete-order.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { PendingOrdersResponseDto, PendingOrderItemDto } from './dto/pending-orders.dto';
+import {
+  ExecutedOrdersResponseDto,
+  ExecutedOrderItemDto,
+} from './dto/executed-orders.dto';
 
 @Injectable()
 export class OrdersService {
@@ -1410,6 +1414,60 @@ export class OrdersService {
     } catch (error) {
       console.error('Error fetching pending orders:', error);
       throw new BadRequestException('Failed to fetch pending orders');
+    }
+  }
+
+  /**
+   * Get executed orders for a CD code
+   */
+  async getExecutedOrders(cdCode: string): Promise<ExecutedOrdersResponseDto> {
+    if (!cdCode || !cdCode.trim()) {
+      throw new BadRequestException('CD code is required');
+    }
+
+    const query = `
+      SELECT
+        CAST(eo.exe_id AS CHAR) AS exe_id,
+        eo.cd_code,
+        CAST(eo.symbol_id AS CHAR) AS symbol_id,
+        s.symbol,
+        CAST(eo.order_exe_price AS CHAR) AS order_exe_price,
+        CAST(eo.lot_size_execute AS CHAR) AS lot_size_execute,
+        TRIM(eo.side) AS side,
+        eo.order_date
+      FROM executed_orders eo
+      INNER JOIN symbol s ON eo.symbol_id = s.symbol_id
+      WHERE eo.cd_code = ?
+      ORDER BY eo.order_date DESC, eo.exe_id DESC
+    `;
+
+    try {
+      const results = await this.cms22DataSource.query(query, [cdCode.trim()]);
+
+      const executedOrders: ExecutedOrderItemDto[] = results.map((row: any) => ({
+        exe_id: row.exe_id || '',
+        cd_code: row.cd_code || '',
+        symbol_id: row.symbol_id || '',
+        symbol: row.symbol || '',
+        order_exe_price: row.order_exe_price || '0.00',
+        lot_size_execute: row.lot_size_execute || '0',
+        side: row.side || '',
+        order_date: row.order_date
+          ? new Date(row.order_date)
+              .toISOString()
+              .replace('T', ' ')
+              .substring(0, 19)
+          : '',
+      }));
+
+      return {
+        success: true,
+        data: executedOrders,
+        count: executedOrders.length,
+      };
+    } catch (error) {
+      console.error('Error fetching executed orders:', error);
+      throw new BadRequestException('Failed to fetch executed orders');
     }
   }
 }

@@ -1,4 +1,14 @@
-import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Query,
+  Request,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -12,6 +22,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { DeleteOrderDto } from './dto/delete-order.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { PendingOrdersResponseDto, PendingOrdersRequestDto } from './dto/pending-orders.dto';
+import { ExecutedOrdersResponseDto } from './dto/executed-orders.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrderChangesMonitorService, CircuitState } from './order-changes-monitor.service';
 
@@ -129,6 +140,50 @@ export class OrdersController {
     @Query('username') username: string,
   ): Promise<PendingOrdersResponseDto> {
     return this.ordersService.getPendingOrders(username);
+  }
+
+  @Get('executedOrders')
+  @ApiOperation({
+    summary: 'Get executed orders for authenticated user',
+    description:
+      'Retrieves executed orders for the authenticated user by extracting cd_code from JWT token.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Executed orders retrieved successfully',
+    type: ExecutedOrdersResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getExecutedOrders(@Request() req): Promise<ExecutedOrdersResponseDto> {
+    try {
+      const cdCode = req.user.cd_code;
+
+      if (!cdCode) {
+        throw new HttpException(
+          'CD code not found in token',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      return this.ordersService.getExecutedOrders(cdCode);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in getExecutedOrders:', error);
+      throw new HttpException(
+        'Failed to fetch executed orders',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   // ============================================================================
