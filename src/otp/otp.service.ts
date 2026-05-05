@@ -10,7 +10,7 @@ import * as nodemailer from 'nodemailer';
 @Injectable()
 export class OtpService {
   constructor(
-    @InjectRepository(SmsOtpLog)
+    @InjectRepository(SmsOtpLog, 'financial')
     private smsOtpLogRepository: Repository<SmsOtpLog>,
     private configService: ConfigService,
   ) {}
