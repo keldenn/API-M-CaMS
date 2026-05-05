@@ -69,13 +69,17 @@ export class HoldingsService {
           (
             SELECT COUNT(*) 
             FROM cds_holding h 
+            JOIN symbol s ON s.symbol_id = h.symbol_id
             JOIN linkuser lu2 ON h.cd_code = lu2.client_code 
             WHERE lu2.username = ? 
               AND h.volume > 0
+              AND s.status = 1
+              AND s.security_type = 'OS'
           ) AS total_holdings_count,
           (
             SELECT COALESCE(SUM(h.volume * mp.market_price), 0)
             FROM cds_holding h
+            JOIN symbol s ON s.symbol_id = h.symbol_id
             JOIN linkuser lu3 ON h.cd_code = lu3.client_code
             JOIN (
               SELECT mp1.symbol_id, mp1.market_price
@@ -90,6 +94,8 @@ export class HoldingsService {
             ) mp ON mp.symbol_id = h.symbol_id
             WHERE lu3.username = ?
               AND h.volume > 0
+              AND s.status = 1
+              AND s.security_type = 'OS'
           ) AS current_market_value
         FROM bbo_finance f
         JOIN linkuser l ON l.client_code = f.cd_code
