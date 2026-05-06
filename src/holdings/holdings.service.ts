@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
 import { CdsHolding } from '../entities/cds-holding.entity';
 import { Symbol } from '../entities/symbol.entity';
 import { BboFinance } from '../entities/bbo-finance.entity';
 import { MarketPrice } from '../entities/market-price.entity';
+import { ClientAccount } from '../entities/client-account.entity';
 import { HoldingsResponseDto } from './dto/holdings-response.dto';
 import { PortfolioStatsDto } from './dto/portfolio-stats.dto';
 
@@ -19,7 +23,36 @@ export class HoldingsService {
     private bboFinanceRepository: Repository<BboFinance>,
     @InjectRepository(MarketPrice)
     private marketPriceRepository: Repository<MarketPrice>,
+    @InjectRepository(ClientAccount)
+    private clientAccountRepository: Repository<ClientAccount>,
+    private readonly configService: ConfigService,
   ) {}
+
+  async sendPortfolioStatement(cdCode: string): Promise<string> {
+    try {
+      const client = await this.clientAccountRepository.findOne({
+        where: { cd_code: cdCode },
+      });
+
+      if (!client) {
+        throw new Error('Client account not found');
+      }
+
+      const email = client.email?.trim();
+      if (!email) {
+        throw new Error('No email found for this client account');
+      }
+
+      const holdings = await this.getStatementHoldingsByCdCode(cdCode);
+      const pdfBuffer = await this.generateStatementPdf(client, holdings);
+      await this.sendStatementEmail(email, pdfBuffer);
+
+      return email;
+    } catch (error) {
+      console.error('Error sending portfolio statement:', error);
+      throw new Error('Failed to generate and send portfolio statement');
+    }
+  }
 
   async getHoldingsByCdCode(cdCode: string): Promise<HoldingsResponseDto[]> {
     try {
@@ -122,5 +155,194 @@ export class HoldingsService {
       console.error('Error fetching portfolio stats:', error);
       throw new Error('Failed to fetch portfolio statistics');
     }
+  }
+
+  private async getStatementHoldingsByCdCode(cdCode: string): Promise<
+    {
+      cd_code: string;
+      symbol: string;
+      pledge_volume: number;
+      block_volume: number;
+      total: number;
+    }[]
+  > {
+    const query = `
+      SELECT
+        h.cd_code,
+        s.symbol,
+        h.pledge_volume,
+        h.block_volume,
+        (h.volume + h.pledge_volume + h.block_volume + h.pending_in_vol + h.pending_out_vol) AS total
+      FROM cds_holding h
+      JOIN symbol s ON h.symbol_id = s.symbol_id
+      WHERE h.cd_code = ?
+        AND s.status = 1
+        AND (h.volume + h.pledge_volume + h.block_volume + h.pending_in_vol + h.pending_out_vol) > 0
+      ORDER BY s.symbol ASC
+    `;
+
+    const rows = await this.cdsHoldingRepository.query(query, [cdCode]);
+    return rows.map((row) => ({
+      cd_code: row.cd_code,
+      symbol: row.symbol,
+      pledge_volume: Number(row.pledge_volume) || 0,
+      block_volume: Number(row.block_volume) || 0,
+      total: Number(row.total) || 0,
+    }));
+  }
+
+  private async generateStatementPdf(
+    client: ClientAccount,
+    holdings: {
+      cd_code: string;
+      symbol: string;
+      pledge_volume: number;
+      block_volume: number;
+      total: number;
+    }[],
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      const buffers: Buffer[] = [];
+      const now = new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Thimphu',
+        hour12: false,
+      });
+
+      doc.on('data', (chunk) => buffers.push(chunk as Buffer));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      doc.fontSize(16).text('Royal Securities Exchange of Bhutan', {
+        align: 'center',
+      });
+      doc.moveDown(0.3);
+      doc.fontSize(11).text('Account Summary Details', { align: 'center' });
+      doc.fontSize(10).text(`Report generated on: ${now}`, { align: 'center' });
+      doc.moveDown();
+
+      doc.fontSize(10);
+      doc.text(`CID/DISN/CD CODE : ${client.ID || '-'}`);
+      doc.text(`NAME : ${client.f_name || ''} ${client.l_name || ''}`.trim());
+      doc.text(`TPN No : ${client.tpn || '-'}`);
+      doc.text(`ADDRESS : ${client.address || '-'}`);
+      doc.moveDown();
+
+      const startX = 40;
+      const colWidths = [40, 220, 90, 90, 90];
+      const headers = [
+        'Sl#',
+        'CD Code/Symbol',
+        'Block Vol',
+        'Pledged Vol',
+        'Total Volume',
+      ];
+
+      let currentY = doc.y;
+      doc.rect(startX, currentY, colWidths.reduce((a, b) => a + b, 0), 24).stroke();
+
+      let xCursor = startX;
+      headers.forEach((header, i) => {
+        if (i > 0) {
+          doc
+            .moveTo(xCursor, currentY)
+            .lineTo(xCursor, currentY + 24)
+            .stroke();
+        }
+        doc.fontSize(9).text(header, xCursor + 4, currentY + 7, {
+          width: colWidths[i] - 8,
+          align: i === 0 ? 'center' : 'left',
+        });
+        xCursor += colWidths[i];
+      });
+
+      currentY += 24;
+      holdings.forEach((item, index) => {
+        const rowHeight = 22;
+        doc
+          .rect(startX, currentY, colWidths.reduce((a, b) => a + b, 0), rowHeight)
+          .stroke();
+
+        let rowX = startX;
+        const values = [
+          String(index + 1),
+          `${item.cd_code} - ${item.symbol}`,
+          item.block_volume.toLocaleString(),
+          item.pledge_volume.toLocaleString(),
+          item.total.toLocaleString(),
+        ];
+
+        values.forEach((value, i) => {
+          if (i > 0) {
+            doc
+              .moveTo(rowX, currentY)
+              .lineTo(rowX, currentY + rowHeight)
+              .stroke();
+          }
+          doc.fontSize(9).text(value, rowX + 4, currentY + 6, {
+            width: colWidths[i] - 8,
+            align: i === 0 ? 'center' : i > 1 ? 'right' : 'left',
+          });
+          rowX += colWidths[i];
+        });
+
+        currentY += rowHeight;
+      });
+
+      doc.moveDown(2);
+      doc
+        .fontSize(10)
+        .text('THIS IS A COMPUTER GENERATED REPORT AND REQUIRES NO SIGNATORY', {
+          align: 'center',
+        });
+
+      doc.end();
+    });
+  }
+
+  private async sendStatementEmail(email: string, pdfBuffer: Buffer): Promise<void> {
+    const smtpPort = Number(this.configService.get<number>('SMTP_PORT') || 587);
+    const isSecure = smtpPort === 465;
+
+    const transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
+      port: smtpPort,
+      secure: isSecure,
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
+
+    const fromAddress =
+      this.configService.get<string>('SMTP_FROM') ||
+      this.configService.get<string>('SMTP_USER') ||
+      'noreply@example.com';
+
+    await transporter.sendMail({
+      from: fromAddress,
+      to: email,
+      subject: 'Share Statement',
+      html: `
+        Dear Sir/Madam, <br><br>
+        Please find attached your share statement.<br><br><br>
+        <p style="color: red; font-size: 16px; font-weight: bold;">
+          *** This is an automatically generated email, please do not reply. ***
+        </p>
+        <hr><strong><i>
+        Royal Securities Exchange of Bhutan<br>
+        Post Box No. 742<br>
+        Email:rseb@rsebl.org.bt<br>
+        Phone No.+975-02-323849
+        </i></strong><hr>
+      `,
+      attachments: [
+        {
+          filename: 'ShareStatement.pdf',
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        },
+      ],
+    });
   }
 }

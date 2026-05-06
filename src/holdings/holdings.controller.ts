@@ -119,4 +119,53 @@ export class HoldingsController {
       );
     }
   }
+
+  @Get('statement')
+  @ApiOperation({
+    summary:
+      'Generate portfolio statement PDF and email to authenticated client',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Portfolio statement generated and mailed successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async sendPortfolioStatement(@Request() req): Promise<{
+    error: boolean;
+    message: string;
+  }> {
+    try {
+      const cdCode = req.user.cd_code;
+
+      if (!cdCode) {
+        throw new HttpException(
+          'CD code not found in token',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const sentToEmail = await this.holdingsService.sendPortfolioStatement(cdCode);
+
+      return {
+        error: false,
+        message: `Portfolio statement has been sent to ${sentToEmail}`,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error('Error in sendPortfolioStatement:', error);
+      throw new HttpException(
+        'Failed to generate and send portfolio statement',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
