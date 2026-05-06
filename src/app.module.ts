@@ -12,6 +12,7 @@ import { StocksModule } from './stocks/stocks.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { CorporateActionsModule } from './corporate-actions/corporate-actions.module';
 import { RegisterModule } from './register/register.module';
+import { RenewModule } from './renew/renew.module';
 import { CdCodeModule } from './cd-code/cd-code.module';
 import { OrdersModule } from './orders/orders.module';
 import { CompanyModule } from './company/company.module';
@@ -52,6 +53,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     MarketDataModule,
     CorporateActionsModule,
     RegisterModule,
+    RenewModule,
     CdCodeModule,
     OrdersModule,
     CompanyModule,
