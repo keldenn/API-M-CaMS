@@ -119,7 +119,7 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     return changedPrices;
   }
 
-  async getMarketStats(): Promise<MarketStatsDto> {
+  async getMarketStats(username: string): Promise<MarketStatsDto> {
     const query = `
       SELECT 
         (SELECT market_cap 
@@ -130,14 +130,19 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
          FROM symbol 
          WHERE security_type = 'OS' 
            AND status = 1 
-           AND trsstatus IN (1, 3)) AS total_listed_scripts
+           AND trsstatus IN (1, 3)) AS total_listed_scripts,
+        (SELECT COALESCE(SUM(CASE WHEN f.status = 1 THEN f.amount ELSE 0 END), 0)
+         FROM bbo_finance f
+         JOIN linkuser l ON l.client_code = f.cd_code
+         WHERE l.username = ?) AS totExposure
     `;
 
-    const result = await this.marketIndexRepository.query(query);
+    const result = await this.marketIndexRepository.query(query, [username]);
 
     return {
       market_cap: result[0]?.market_cap ? parseFloat(result[0].market_cap) : 0,
       total_listed_scripts: parseInt(result[0]?.total_listed_scripts) || 0,
+      totExposure: parseFloat(result[0]?.totExposure) || 0,
     };
   }
 }

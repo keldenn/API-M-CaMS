@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Request } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -50,7 +50,7 @@ export class StocksController {
     status: 401,
     description: 'Unauthorized - JWT token required',
   })
-  async getMarketStats(): Promise<MarketStatsDto> {
-    return await this.stocksService.getMarketStats();
+  async getMarketStats(@Request() req: any): Promise<MarketStatsDto> {
+    return await this.stocksService.getMarketStats(req.user.username);
   }
 }

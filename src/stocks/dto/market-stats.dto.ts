@@ -16,4 +16,12 @@ export class MarketStatsDto {
     format: 'integer',
   })
   total_listed_scripts: number;
+
+  @ApiProperty({
+    description: 'Total exposure amount for authenticated user',
+    example: 96202.65,
+    type: 'number',
+    format: 'float',
+  })
+  totExposure: number;
 }
