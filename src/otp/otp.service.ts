@@ -190,11 +190,14 @@ export class OtpService {
 
   private async sendEmail(email: string, message: string): Promise<boolean> {
     try {
+      const smtpPort = Number(this.configService.get<number>('SMTP_PORT') || 587);
+      const isSecure = smtpPort === 465;
+
       // Create transporter (you can configure this based on your email service)
       const transporter = nodemailer.createTransport({
         host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
-        port: this.configService.get<number>('SMTP_PORT') || 587,
-        secure: false,
+        port: smtpPort,
+        secure: isSecure,
         auth: {
           user: this.configService.get<string>('SMTP_USER'),
           pass: this.configService.get<string>('SMTP_PASS'),
