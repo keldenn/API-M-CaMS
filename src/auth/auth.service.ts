@@ -171,6 +171,10 @@ export class AuthService {
       const expiredDate = new Date(createdDate);
       expiredDate.setFullYear(expiredDate.getFullYear() + 1);
 
+      const broComRate = await this.getBrokerCommissionRate(
+        userWithLinkData.cd_code,
+      );
+
       const userData: UserData = {
         cd_code: userWithLinkData.cd_code || '',
         name: userWithLinkData.name || '',
@@ -183,6 +187,7 @@ export class AuthService {
         cid: userWithLinkData.cid || '',
         isPin: userWithLinkData.isPin || 0,
         expired_at: formatDate(expiredDate),
+        bro_com_rate: broComRate,
       };
 
       return {
@@ -584,5 +589,29 @@ export class AuthService {
 
     const result = await this.userRepository.query(query, [username]);
     return result[0] || null;
+  }
+
+  private async getBrokerCommissionRate(
+    cdCode: string | null | undefined,
+  ): Promise<number | null> {
+    if (!cdCode) {
+      return null;
+    }
+
+    const query = `
+      SELECT bc.rate
+      FROM client_account ca
+      JOIN bbo_commission bc ON ca.bro_comm_id = bc.bro_comm_id
+      WHERE ca.cd_code = ?
+      LIMIT 1
+    `;
+
+    const result = await this.userRepository.query(query, [cdCode]);
+    if (!result?.length || result[0].rate === null || result[0].rate === undefined) {
+      return null;
+    }
+
+    const parsedRate = Number(result[0].rate);
+    return Number.isNaN(parsedRate) ? null : parsedRate;
   }
 }

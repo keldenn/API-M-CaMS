@@ -33,6 +33,9 @@ export class UserData {
 
   @ApiProperty()
   expired_at: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  bro_com_rate?: number | null;
 }
 
 export class LoginResponseDto {
@@ -50,4 +53,5 @@ export class LoginResponseDto {
 
   @ApiProperty({ required: false })
   refresh_token?: string;
+
 }
