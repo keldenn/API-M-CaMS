@@ -7,8 +7,19 @@ export class UserData {
   @ApiProperty()
   name: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Email from client_account when present, otherwise users.email',
+  })
   email: string;
+
+  @ApiProperty({ description: 'Phone from client_account' })
+  phone: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  bank_id: number | null;
+
+  @ApiProperty()
+  bank_account: string;
 
   @ApiProperty()
   username: string;

@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { User } from '../entities/user.entity';
 import { LinkUser } from '../entities/linkuser.entity';
+import { ClientAccount } from '../entities/client-account.entity';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto, UserData } from './dto/login-response.dto';
 import {
@@ -34,6 +35,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     @InjectRepository(LinkUser)
     private linkUserRepository: Repository<LinkUser>,
+    @InjectRepository(ClientAccount)
+    private clientAccountRepository: Repository<ClientAccount>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -175,10 +178,23 @@ export class AuthService {
         userWithLinkData.cd_code,
       );
 
+      const clientAccount = userWithLinkData.cd_code
+        ? await this.clientAccountRepository.findOne({
+            where: { cd_code: userWithLinkData.cd_code },
+          })
+        : null;
+
       const userData: UserData = {
         cd_code: userWithLinkData.cd_code || '',
         name: userWithLinkData.name || '',
-        email: userWithLinkData.email || '',
+        email: (
+          clientAccount?.email ??
+          userWithLinkData.email ??
+          ''
+        ).trim(),
+        phone: clientAccount?.phone ?? '',
+        bank_id: clientAccount?.bank_id ?? null,
+        bank_account: clientAccount?.bank_account ?? '',
         username: userWithLinkData.username || '',
         broker_user_name: userWithLinkData.broker_user_name || '',
         participant_code: userWithLinkData.participant_code || '',

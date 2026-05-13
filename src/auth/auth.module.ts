@@ -9,10 +9,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { User } from '../entities/user.entity';
 import { LinkUser } from '../entities/linkuser.entity';
+import { ClientAccount } from '../entities/client-account.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, LinkUser]),
+    TypeOrmModule.forFeature([User, LinkUser, ClientAccount]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
