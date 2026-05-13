@@ -2,7 +2,8 @@ import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('mcams_wallet')
 export class McamsWallet {
-  @PrimaryGeneratedColumn()
+  /** Matches DB column `wallet_id` (same as legacy PHP). */
+  @PrimaryGeneratedColumn({ name: 'wallet_id' })
   id: number;
 
   @Column({ name: 'cd_code' })
