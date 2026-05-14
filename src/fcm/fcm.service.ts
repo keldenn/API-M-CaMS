@@ -380,6 +380,42 @@ export class FcmService implements OnModuleInit {
 
     await this.sendToCdCode(cdCode, payload);
   }
+
+  /**
+   * Subscription reminder: expiry = user created_at + 1 year (same rule as login `expired_at`).
+   */
+  async sendAccountExpiryNotification(
+    cdCode: string,
+    args: {
+      isExpired: boolean;
+      daysUntilExpiration: number;
+      expirationDateFormatted: string;
+    },
+  ): Promise<void> {
+    const { isExpired, daysUntilExpiration, expirationDateFormatted } = args;
+    const title = isExpired
+      ? 'Account expired'
+      : 'Account expiring soon';
+    const body = isExpired
+      ? `Your subscription expired on ${expirationDateFormatted}. Please renew to continue using the service.`
+      : `Your subscription expires on ${expirationDateFormatted} (${daysUntilExpiration} day(s) remaining). Please renew before expiry.`;
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      androidChannelId: 'account_expiration',
+      data: {
+        type: 'account_expiration',
+        cd_code: cdCode,
+        is_expired: isExpired ? '1' : '0',
+        days_until_expiration: String(daysUntilExpiration),
+        expiration_date: expirationDateFormatted,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    await this.sendToCdCode(cdCode, payload);
+  }
 }
 
 

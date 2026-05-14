@@ -25,6 +25,8 @@ import {
   getCms22DatabaseConfig,
 } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
+import { ScheduleModule } from '@nestjs/schedule';
+import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.module';
 
 @Module({
   imports: [
@@ -62,6 +64,8 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     FcmModule,
     WalletModule,
     WatchlistModule,
+    ScheduleModule.forRoot(),
+    AccountExpiryFcmModule,
   ],
   controllers: [AppController],
   providers: [
