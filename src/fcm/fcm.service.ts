@@ -7,6 +7,8 @@ interface NotificationPayload {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /** Android notification channel; defaults to order_updates */
+  androidChannelId?: string;
 }
 
 @Injectable()
@@ -75,7 +77,7 @@ export class FcmService implements OnModuleInit {
           priority: 'high',
           notification: {
             sound: 'default',
-            channelId: 'order_updates',
+            channelId: payload.androidChannelId || 'order_updates',
           },
         },
         apns: {
@@ -150,7 +152,7 @@ export class FcmService implements OnModuleInit {
         priority: 'high',
         notification: {
           sound: 'default',
-          channelId: 'order_updates',
+          channelId: payload.androidChannelId || 'order_updates',
         },
       },
       apns: {
@@ -334,6 +336,47 @@ export class FcmService implements OnModuleInit {
     this.logger.log(
       `📤 Sending price discovery notification to cd_code: ${cdCode} (${sideText} ${discoveryData.volume} @ ${discoveryData.price})`,
     );
+
+    await this.sendToCdCode(cdCode, payload);
+  }
+
+  /**
+   * Push when a watchlisted symbol's price changes (server-side price monitor).
+   */
+  async sendWatchlistPriceNotification(
+    cdCode: string,
+    stock: {
+      symbol: string;
+      name: string;
+      currentPrice: number;
+      previousPrice: number;
+    },
+  ): Promise<void> {
+    const { symbol, name, currentPrice, previousPrice } = stock;
+    const priceChange = currentPrice - previousPrice;
+    const changePercent =
+      previousPrice !== 0 ? (priceChange / previousPrice) * 100 : 0;
+    const isPositive = priceChange >= 0;
+    const title = `${symbol} Price ${isPositive ? 'Increased' : 'Decreased'}`;
+    const sign = isPositive ? '+' : '';
+    const body = `${name}\nPrice: ${currentPrice.toFixed(2)}\nChange: ${sign}${priceChange.toFixed(2)} (${sign}${changePercent.toFixed(2)}%)`;
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      androidChannelId: 'stock_price_alerts',
+      data: {
+        type: 'watchlist_price',
+        cd_code: cdCode,
+        symbol,
+        name,
+        current_price: currentPrice.toString(),
+        previous_price: previousPrice.toString(),
+        price_change: priceChange.toString(),
+        change_percent: changePercent.toString(),
+        timestamp: new Date().toISOString(),
+      },
+    };
 
     await this.sendToCdCode(cdCode, payload);
   }

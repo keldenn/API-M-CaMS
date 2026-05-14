@@ -21,9 +21,13 @@ import { Symbol } from '../entities/symbol.entity';
 import { MarketIndex } from '../entities/market-index.entity';
 import { SectorIndex } from '../entities/sector-index.entity';
 import { MarketPriceHistory } from '../entities/market-price-history.entity';
+import { FcmModule } from '../fcm/fcm.module';
+import { WatchlistModule } from '../watchlist/watchlist.module';
 
 @Module({
   imports: [
+    FcmModule,
+    WatchlistModule,
     TypeOrmModule.forFeature([
       MarketPrice,
       Symbol,

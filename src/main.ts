@@ -37,6 +37,20 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+
+  // Swagger UI follows the root `tags` array order; place watchlist right after Wallet.
+  if (document.tags?.length) {
+    const watchlistTag = document.tags.find((t) => t.name === 'watchlist');
+    if (watchlistTag) {
+      const rest = document.tags.filter((t) => t.name !== 'watchlist');
+      const walletIdx = rest.findIndex((t) => t.name === 'Wallet');
+      if (walletIdx !== -1) {
+        rest.splice(walletIdx + 1, 0, watchlistTag);
+        document.tags = rest;
+      }
+    }
+  }
+
   SwaggerModule.setup('api', app, document);
 
   await app.listen(process.env.PORT ?? 3000);

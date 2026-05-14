@@ -14,6 +14,8 @@ import { Symbol } from '../entities/symbol.entity';
 import { StockPriceDto } from './dto/stock-price.dto';
 import { MarketStatsDto } from './dto/market-stats.dto';
 import { StocksGateway } from './stocks.gateway';
+import { FcmService } from '../fcm/fcm.service';
+import { WatchlistService } from '../watchlist/watchlist.service';
 
 @Injectable()
 export class StocksService implements OnModuleInit, OnModuleDestroy {
@@ -31,6 +33,8 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     private readonly symbolRepository: Repository<Symbol>,
     @Inject(forwardRef(() => StocksGateway))
     private stocksGateway: StocksGateway,
+    private readonly fcmService: FcmService,
+    private readonly watchlistService: WatchlistService,
   ) {}
 
   async onModuleInit() {
@@ -91,6 +95,14 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
           // Broadcast all prices (or just changed ones, depending on your needs)
           this.stocksGateway.broadcastPriceUpdate(currentPrices);
 
+          const snapshots = changedPrices.map((stock) => ({
+            stock,
+            previousPrice: this.lastPrices.get(stock.symbol),
+          }));
+          void this.notifyWatchlistSubscribers(snapshots).catch((err) =>
+            this.logger.error('Watchlist FCM notification failed', err),
+          );
+
           // Update last known prices
           currentPrices.forEach((stock) => {
             this.lastPrices.set(stock.symbol, stock.currentPrice);
@@ -117,6 +129,67 @@ export class StocksService implements OnModuleInit, OnModuleDestroy {
     }
 
     return changedPrices;
+  }
+
+  /**
+   * For each users_watchlist row whose symbol had a real price move, send FCM
+   * to all devices registered for that cd_code (fcm_tokens).
+   */
+  private async notifyWatchlistSubscribers(
+    snapshots: Array<{
+      stock: StockPriceDto;
+      previousPrice: number | undefined;
+    }>,
+  ): Promise<void> {
+    const valid = snapshots.filter(
+      (s): s is { stock: StockPriceDto; previousPrice: number } =>
+        s.previousPrice !== undefined &&
+        s.previousPrice !== s.stock.currentPrice,
+    );
+    if (!valid.length) {
+      return;
+    }
+
+    const stockBySymbol = new Map(
+      valid.map((s) => [s.stock.symbol.trim().toUpperCase(), s.stock]),
+    );
+    const previousBySymbol = new Map(
+      valid.map((s) => [s.stock.symbol.trim().toUpperCase(), s.previousPrice]),
+    );
+
+    const symbols = [...stockBySymbol.keys()];
+    const watchers = await this.watchlistService.findWatchersForSymbols(
+      symbols,
+    );
+    if (!watchers.length) {
+      return;
+    }
+
+    this.logger.log(
+      `Watchlist FCM: ${watchers.length} subscriber(s) for ${symbols.length} changed symbol(s)`,
+    );
+
+    for (const { cd_code, symbol } of watchers) {
+      const stock = stockBySymbol.get(symbol);
+      const previousPrice = previousBySymbol.get(symbol);
+      if (!stock || previousPrice === undefined) {
+        continue;
+      }
+
+      try {
+        await this.fcmService.sendWatchlistPriceNotification(cd_code, {
+          symbol: stock.symbol,
+          name: stock.name,
+          currentPrice: stock.currentPrice,
+          previousPrice,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Watchlist FCM failed for cd_code=${cd_code} symbol=${symbol}`,
+          err,
+        );
+      }
+    }
   }
 
   async getMarketStats(username: string): Promise<MarketStatsDto> {

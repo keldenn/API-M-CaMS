@@ -18,6 +18,7 @@ import { OrdersModule } from './orders/orders.module';
 import { CompanyModule } from './company/company.module';
 import { FcmModule } from './fcm/fcm.module';
 import { WalletModule } from './wallet/wallet.module';
+import { WatchlistModule } from './watchlist/watchlist.module';
 import {
   getDatabaseConfig,
   getFinancialDatabaseConfig,
@@ -60,6 +61,7 @@ import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
     CompanyModule,
     FcmModule,
     WalletModule,
+    WatchlistModule,
   ],
   controllers: [AppController],
   providers: [
