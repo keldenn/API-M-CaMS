@@ -1,19 +1,41 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Request } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Request as ExpressRequest } from 'express';
 import { WatchlistService } from './watchlist.service';
 import { WatchlistMutationDto } from './dto/watchlist-mutation.dto';
 import { WatchlistResponseDto } from './dto/watchlist-response.dto';
+import { WatchlistItemWithPriceDto } from './dto/watchlist-item-with-price.dto';
+
+type JwtUser = { cd_code?: string };
 
 @ApiTags('watchlist')
 @Controller('watchlist')
 @ApiBearerAuth('JWT-auth')
 export class WatchlistController {
   constructor(private readonly watchlistService: WatchlistService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get watchlist with live prices',
+    description:
+      'Returns all `users_watchlist` rows for the authenticated user. `cd_code` is taken from the JWT access token (no body). Each item uses the same price and day change logic as GET /stocks/price; `addedAt` is `users_watchlist.created_At`.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Watchlist with prices (empty array if none)',
+    type: [WatchlistItemWithPriceDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getWatchlist(
+    @Request() req: ExpressRequest & { user: JwtUser },
+  ): Promise<WatchlistItemWithPriceDto[]> {
+    return this.watchlistService.getWatchlistWithPrices(req.user?.cd_code ?? '');
+  }
 
   @Post('add')
   @HttpCode(HttpStatus.OK)
