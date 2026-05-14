@@ -78,7 +78,8 @@ export class AuthService {
       if (!userWithLinkData) {
         return {
           error: true,
-          message: 'Invalid Username or Password',
+          message:
+            'Invalid username: no account was found for this username.',
           data: null,
         };
       }
@@ -114,7 +115,7 @@ export class AuthService {
       if (!passwordVerified) {
         return {
           error: true,
-          message: 'Invalid Username or Password',
+          message: 'Invalid password.',
           data: null,
         };
       }
