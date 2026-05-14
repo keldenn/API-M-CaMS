@@ -1,11 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
 export class WalletWithdrawDto {
   @ApiProperty({
@@ -28,15 +23,6 @@ export class WalletWithdrawDto {
   @IsString()
   @IsNotEmpty()
   username: string;
-
-  @ApiProperty({
-    required: false,
-    description: 'Legacy flag: `WithdrawWalletBalance`',
-    example: 'WithdrawWalletBalance',
-  })
-  @IsOptional()
-  @IsString()
-  WithdrawWalletBalance?: string;
 }
 
 export class WalletWithdrawResponseDto {

@@ -136,7 +136,7 @@ export class WalletController {
   @ApiOperation({
     summary: 'Withdraw wallet balance (legacy WithdrawWalletBalance)',
     description:
-      '**POST**: Uses `Amount`, `cd_code`, and `username` from the JSON body (same fields as legacy PHP). `cd_code` is not taken from the JWT for the DB operations; if the JWT includes `cd_code`, it must match the body. `username` must match the JWT `username`.',
+      '**POST**: Body is `Amount`, `cd_code`, and `username` only. A static legacy `WithdrawWalletBalance` field is added server-side when writing `mobile_api_log` (PHP parity). `cd_code` is not taken from the JWT for the DB operations; if the JWT includes `cd_code`, it must match the body. `username` must match the JWT `username`.',
   })
   @ApiBody({ type: WalletWithdrawDto })
   @ApiResponse({

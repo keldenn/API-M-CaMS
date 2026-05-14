@@ -6,6 +6,11 @@ import { McamsWallet } from '../entities/mcams-wallet.entity';
 const MCAMS_INSTITUTION_ID = 230822044455;
 const WITHDRAW_BBO_USER = 'MEMRNRB001';
 
+/** Legacy PHP parity: always included in `mobile_api_log.endpoint` JSON (not from client). */
+const LEGACY_WITHDRAW_LOG_ACTION = {
+  WithdrawWalletBalance: 'WithdrawWalletBalance',
+} as const;
+
 @Injectable()
 export class WalletService {
   constructor(
@@ -77,7 +82,7 @@ export class WalletService {
     }
 
     const endpointPayload = JSON.stringify({
-      WithdrawWalletBalance: 'WithdrawWalletBalance',
+      ...LEGACY_WITHDRAW_LOG_ACTION,
       Amount: amount,
       cd_code,
       username,
