@@ -20,7 +20,7 @@ export class RenewController {
   @ApiOperation({
     summary: 'Get user details by username for renew flow',
     description:
-      'Returns renew-eligible user details when username exists, role_id is 4, and account status is inactive.',
+      'Returns renew-eligible user details when username exists and role_id is 4. Eligible cases: account inactive (status 0), or active (status 1) with subscription end (created_at + 1 year) within the next 7 days.',
   })
   @ApiResponse({
     status: 200,

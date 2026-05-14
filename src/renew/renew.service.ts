@@ -6,6 +6,9 @@ import { GetUserDetailsDto } from './dto/get-user-details.dto';
 import { SubmitFormRenewDto } from './dto/submit-form-renew.dto';
 import { PaymentSuccessOrDto } from './dto/payment-success-or.dto';
 
+/** Days before subscription end when renew is allowed for active (status=1) accounts. */
+const EARLY_RENEW_DAYS_BEFORE_EXPIRY = 7;
+
 @Injectable()
 export class RenewService {
   constructor(
@@ -15,6 +18,48 @@ export class RenewService {
     private readonly cms22DataSource: DataSource,
   ) {}
 
+  /**
+   * Same rule as login profile: subscription ends one calendar year after created_at.
+   */
+  private subscriptionExpiryDate(createdAt: Date | string | null | undefined): Date {
+    const created = createdAt ? new Date(createdAt as string) : new Date();
+    const expiry = new Date(created);
+    expiry.setFullYear(expiry.getFullYear() + 1);
+    return expiry;
+  }
+
+  /** Active account may start renew when expiry is within EARLY_RENEW_DAYS_BEFORE_EXPIRY days (or already passed). */
+  private isWithinEarlyRenewWindow(expiryDate: Date, now: Date = new Date()): boolean {
+    const msPerDay = 86400000;
+    const daysUntilExpiry = (expiryDate.getTime() - now.getTime()) / msPerDay;
+    return daysUntilExpiry <= EARLY_RENEW_DAYS_BEFORE_EXPIRY;
+  }
+
+  /**
+   * SQL fragment: inactive users, or active users whose subscription ends within the early-renew window.
+   * Matches JS logic in getUserDetailsByUsername.
+   */
+  private renewEligibleUserWhereSql(): string {
+    return `(
+        u.status = 0
+        OR (
+          u.status = 1
+          AND DATE_ADD(u.created_at, INTERVAL 1 YEAR) <= DATE_ADD(NOW(), INTERVAL ${EARLY_RENEW_DAYS_BEFORE_EXPIRY} DAY)
+        )
+      )`;
+  }
+
+  /** For raw UPDATE ... WHERE username = ? AND role_id = 4 AND (...). */
+  private renewEligibleUserWhereParamsSql(): string {
+    return `(
+        status = 0
+        OR (
+          status = 1
+          AND DATE_ADD(created_at, INTERVAL 1 YEAR) <= DATE_ADD(NOW(), INTERVAL ${EARLY_RENEW_DAYS_BEFORE_EXPIRY} DAY)
+        )
+      )`;
+  }
+
   async getUserDetailsByUsername(dto: GetUserDetailsDto): Promise<{
     status: string;
     message: string;
@@ -22,33 +67,37 @@ export class RenewService {
   }> {
     const username = dto.username;
 
-    const count = await this.userRepository
-      .createQueryBuilder('u')
-      .where('u.username = :username', { username })
-      .andWhere('u.role_id = :roleId', { roleId: 4 })
-      .getCount();
+    const rows = await this.userRepository.query(
+      `SELECT status, created_at FROM users WHERE username = ? AND role_id = 4 LIMIT 1`,
+      [username],
+    );
+    const userRow = rows?.[0];
 
-    if (count < 1) {
+    if (!userRow) {
       return {
         status: '100',
         message: 'Please enter a valid username.',
       };
     }
 
-    const inactiveCount = await this.userRepository
-      .createQueryBuilder('u')
-      .where('u.username = :username', { username })
-      .andWhere('u.status = :status', { status: 0 })
-      .andWhere('u.role_id = :roleId', { roleId: 4 })
-      .getCount();
+    const userStatus = parseInt(String(userRow.status), 10);
+    const expiryDate = this.subscriptionExpiryDate(userRow.created_at);
 
-    if (inactiveCount < 1) {
+    if (userStatus === 1 && !this.isWithinEarlyRenewWindow(expiryDate)) {
       return {
         status: '100',
         message: 'Your mCaMS account is still active. Cannot renew before expires.',
       };
     }
 
+    if (userStatus !== 0 && userStatus !== 1) {
+      return {
+        status: '100',
+        message: 'Your mCaMS account is still active. Cannot renew before expires.',
+      };
+    }
+
+    const eligibleWhere = this.renewEligibleUserWhereSql();
     const result = await this.userRepository.query(
       `SELECT
          l.client_code,
@@ -62,14 +111,19 @@ export class RenewService {
        FROM users u
        INNER JOIN linkuser l ON u.username = l.username
        WHERE u.username = ?
-         AND u.status = 0
-         AND u.role_id = 4`,
+         AND u.role_id = 4
+         AND ${eligibleWhere}`,
       [username],
     );
 
+    const message =
+      userStatus === 0
+        ? 'Your account has expired.'
+        : 'Your subscription is ending soon; you may renew now.';
+
     return {
       status: '200',
-      message: 'Your account has expired.',
+      message,
       data: result,
     };
   }
@@ -164,11 +218,12 @@ export class RenewService {
     }
 
     let updateResult: any;
+    const renewWhere = this.renewEligibleUserWhereParamsSql();
     try {
       updateResult = await this.userRepository.query(
         `UPDATE users
          SET cd_code = ?, amount = ?, amt_status = 0, orderNo = ?, gst = ?
-         WHERE username = ? AND status = 0 AND role_id = 4`,
+         WHERE username = ? AND role_id = 4 AND ${renewWhere}`,
         [dto.cdCode ?? user.cd_code, fee, orderNo, gst, dto.userName],
       );
     } catch (error) {
@@ -177,7 +232,7 @@ export class RenewService {
         updateResult = await this.userRepository.query(
           `UPDATE users
            SET cd_code = ?, amount = ?, amt_status = 0, orderNo = ?
-           WHERE username = ? AND status = 0 AND role_id = 4`,
+           WHERE username = ? AND role_id = 4 AND ${renewWhere}`,
           [dto.cdCode ?? user.cd_code, fee, orderNo, dto.userName],
         );
       } else {
