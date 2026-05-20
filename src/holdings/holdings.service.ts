@@ -94,6 +94,17 @@ export class HoldingsService {
     }
   }
 
+  hasNonZeroHoldings(holdings: HoldingsResponseDto[]): boolean {
+    return holdings.some(
+      (h) =>
+        h.volume !== 0 ||
+        h.pending_out_vol !== 0 ||
+        h.pending_in_vol !== 0 ||
+        h.pledge_volume !== 0 ||
+        h.block_volume !== 0,
+    );
+  }
+
   async getPortfolioStats(username: string): Promise<PortfolioStatsDto> {
     try {
       const query = `

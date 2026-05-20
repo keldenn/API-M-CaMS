@@ -2,14 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersWatchlist } from '../entities/users-watchlist.entity';
+import { MarketPrice } from '../entities/market-price.entity';
 import { WatchlistMutationDto } from './dto/watchlist-mutation.dto';
 import { WatchlistResponseDto } from './dto/watchlist-response.dto';
+import { WatchlistItemWithPriceDto } from './dto/watchlist-item-with-price.dto';
 
 @Injectable()
 export class WatchlistService {
   constructor(
     @InjectRepository(UsersWatchlist, 'cms22')
     private readonly watchlistRepository: Repository<UsersWatchlist>,
+    @InjectRepository(MarketPrice)
+    private readonly marketPriceRepository: Repository<MarketPrice>,
   ) {}
 
   async add(dto: WatchlistMutationDto): Promise<WatchlistResponseDto> {
@@ -47,6 +51,78 @@ export class WatchlistService {
       );
     }
     return { success: true, message: 'Symbol removed from watchlist.' };
+  }
+
+  async getByCdCode(cd_code: string): Promise<WatchlistItemWithPriceDto[]> {
+    const rows = await this.watchlistRepository.find({
+      where: { cd_code },
+      order: { created_At: 'DESC' },
+    });
+    if (!rows.length) {
+      return [];
+    }
+
+    const symbols = [
+      ...new Set(
+        rows.map((r) => r.symbol.trim().toUpperCase()).filter((s) => s.length > 0),
+      ),
+    ];
+    const priceBySymbol = await this.fetchPricesForSymbols(symbols);
+
+    return rows.map((row) => {
+      const key = row.symbol.trim().toUpperCase();
+      const quote = priceBySymbol.get(key);
+      const price = quote?.price ?? 0;
+      const change = quote?.change ?? 0;
+      const exPrice = price - change;
+      const changePercent =
+        exPrice !== 0 ? Math.round((change / exPrice) * 10000) / 100 : 0;
+
+      return {
+        symbol: row.symbol.trim(),
+        name: quote?.name ?? row.symbol.trim(),
+        price,
+        change,
+        changePercent,
+        addedAt: row.created_At.toISOString(),
+      };
+    });
+  }
+
+  private async fetchPricesForSymbols(
+    symbols: string[],
+  ): Promise<Map<string, { name: string; price: number; change: number }>> {
+    const out = new Map<string, { name: string; price: number; change: number }>();
+    if (!symbols.length) {
+      return out;
+    }
+
+    const query = `
+      SELECT
+        symbol.symbol AS symbol,
+        symbol.name AS name,
+        market_price.market_price AS market_price,
+        market_price.market_price - market_price.ex_market_price AS price_change
+      FROM market_price
+      JOIN symbol ON market_price.symbol_id = symbol.symbol_id
+      WHERE UPPER(TRIM(symbol.symbol)) IN (?)
+    `;
+    const results: Array<{
+      symbol: string;
+      name: string;
+      market_price: string | number;
+      price_change: string | number;
+    }> = await this.marketPriceRepository.query(query, [symbols]);
+
+    for (const row of results) {
+      const key = String(row.symbol).trim().toUpperCase();
+      out.set(key, {
+        name: row.name,
+        price: parseFloat(String(row.market_price)),
+        change: parseFloat(String(row.price_change)),
+      });
+    }
+    return out;
   }
 
   /**

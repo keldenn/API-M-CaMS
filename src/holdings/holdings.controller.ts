@@ -55,7 +55,10 @@ export class HoldingsController {
 
       const holdings = await this.holdingsService.getHoldingsByCdCode(cdCode);
 
-      if (holdings.length === 0) {
+      if (
+        holdings.length === 0 ||
+        !this.holdingsService.hasNonZeroHoldings(holdings)
+      ) {
         return {
           error: false,
           message: 'No holdings found',
