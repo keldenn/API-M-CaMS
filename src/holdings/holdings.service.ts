@@ -70,6 +70,11 @@ export class HoldingsService {
         JOIN symbol s ON h.symbol_id = s.symbol_id 
         WHERE h.cd_code = ? 
         AND s.status = 1
+        AND (
+          COALESCE(h.volume, 0) + COALESCE(h.pending_out_vol, 0)
+          + COALESCE(h.pending_in_vol, 0) + COALESCE(h.pledge_volume, 0)
+          + COALESCE(h.block_volume, 0)
+        ) > 0
       `;
 
       const result = await this.cdsHoldingRepository.query(query, [cdCode]);
@@ -92,17 +97,6 @@ export class HoldingsService {
       console.error('Error fetching holdings:', error);
       throw new Error('Failed to fetch holdings data');
     }
-  }
-
-  hasNonZeroHoldings(holdings: HoldingsResponseDto[]): boolean {
-    return holdings.some(
-      (h) =>
-        h.volume !== 0 ||
-        h.pending_out_vol !== 0 ||
-        h.pending_in_vol !== 0 ||
-        h.pledge_volume !== 0 ||
-        h.block_volume !== 0,
-    );
   }
 
   async getPortfolioStats(username: string): Promise<PortfolioStatsDto> {
