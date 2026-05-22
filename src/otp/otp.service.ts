@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -17,6 +17,14 @@ export class OtpService {
 
   async sendOtp(sendOtpDto: SendOtpDto): Promise<SendOtpResponseDto> {
     const { email, phone_no } = sendOtpDto;
+
+    if (!email && !phone_no) {
+      throw new BadRequestException({
+        message: ['Email and phone number not found'],
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+    }
 
     try {
       // Generate 6-digit OTP
@@ -53,19 +61,19 @@ export class OtpService {
         if (smsSuccess && emailSuccess) {
           return {
             error: false,
-            message: 'Successfully sent OTP via SMS and email',
+            message: 'OTP sent to email and phone number',
             data: 'SENT',
           };
         } else if (smsSuccess && !email) {
           return {
             error: false,
-            message: 'Successfully sent OTP via SMS',
+            message: 'No email address provided. OTP sent to phone number',
             data: 'SENT',
           };
         } else if (emailSuccess && !phone_no) {
           return {
             error: false,
-            message: 'Successfully sent OTP via email',
+            message: 'No phone number provided. OTP sent to email',
             data: 'SENT',
           };
         } else {

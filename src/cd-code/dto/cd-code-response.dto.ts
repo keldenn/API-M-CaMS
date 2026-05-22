@@ -27,7 +27,8 @@ export class CdCodeResponseDto {
   has_mcams!: boolean;
 
   @ApiProperty({
-    description: 'Indicates if there is a user with status = 1 for the given cid',
+    description:
+      'Indicates if the mCaMS user (role_id = 4) for the given cid has status = 1 (active)',
     example: true,
   })
   is_mcams_active!: boolean;

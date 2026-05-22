@@ -9,8 +9,8 @@ export class CdCodeService {
   private readonly logger = new Logger(CdCodeService.name);
 
   constructor(
-    @InjectDataSource('default')
-    private readonly dataSource: DataSource,
+    @InjectDataSource('cms22')
+    private readonly cms22DataSource: DataSource,
   ) {}
 
   async findAll(
@@ -42,38 +42,58 @@ export class CdCodeService {
         AND ca.ID = ?;
     `;
 
-    const result = await this.dataSource.query<CdCodeResponseDto[]>(query, [
-      cid,
-    ]);
-
-    // Query users table to check for has_mcams and is_mcams_active
-    const usersQuery = `
-      SELECT 
-        role_id,
-        status
-      FROM 
-        users
-      WHERE 
-        cid = ?;
-    `;
-
-    const users = await this.dataSource.query(usersQuery, [cid]);
-
-    // Check if any user has role_id = 4
-    const has_mcams = users.some(
-      (user: any) => Number(user.role_id) === 4,
+    const result = await this.cms22DataSource.query<CdCodeResponseDto[]>(
+      query,
+      [cid],
     );
 
-    // Check if any user has status = 1
-    const is_mcams_active = users.some(
-      (user: any) => Number(user.status) === 1,
+    const cdCodes = [
+      ...new Set(
+        result
+          .map((row) => row.cd_code?.trim())
+          .filter((code): code is string => Boolean(code)),
+      ),
+    ];
+
+    const mcamsUsers = await this.findMcamsUsers(cid, cdCodes);
+
+    const has_mcams = mcamsUsers.length > 0;
+    const is_mcams_active = mcamsUsers.some(
+      (user) => Number(user.status) === 1,
     );
 
-    // Add the new fields to each result
     return result.map((item) => ({
       ...item,
       has_mcams,
       is_mcams_active,
     }));
+  }
+
+  /**
+   * mCaMS usernames are participant_code + cid (e.g. MEMBNBL10906002173).
+   * Match cid column, cd_code, or username suffix when cid in users differs from client_account.ID.
+   */
+  private findMcamsUsers(
+    cid: string,
+    cdCodes: string[],
+  ): Promise<{ status: number }[]> {
+    const usernameSuffix = `%${cid}`;
+
+    if (cdCodes.length > 0) {
+      const placeholders = cdCodes.map(() => '?').join(', ');
+      return this.cms22DataSource.query(
+        `SELECT status FROM users
+         WHERE role_id = 4
+           AND (cid = ? OR username LIKE ? OR cd_code IN (${placeholders}))`,
+        [cid, usernameSuffix, ...cdCodes],
+      );
+    }
+
+    return this.cms22DataSource.query(
+      `SELECT status FROM users
+       WHERE role_id = 4
+         AND (cid = ? OR username LIKE ?)`,
+      [cid, usernameSuffix],
+    );
   }
 }
