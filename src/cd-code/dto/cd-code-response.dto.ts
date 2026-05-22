@@ -21,14 +21,15 @@ export class CdCodeResponseDto {
   name!: string;
 
   @ApiProperty({
-    description: 'Indicates if there is a user with role_id = 4 for the given cid',
+    description:
+      'Indicates if there is an mCaMS user (role_id = 4) for this cd_code and cid',
     example: true,
   })
   has_mcams!: boolean;
 
   @ApiProperty({
     description:
-      'Indicates if the mCaMS user (role_id = 4) for the given cid has status = 1 (active)',
+      'Indicates if the mCaMS user (role_id = 4) for this cd_code has status = 1 (active)',
     example: true,
   })
   is_mcams_active!: boolean;

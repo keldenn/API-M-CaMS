@@ -57,16 +57,23 @@ export class CdCodeService {
 
     const mcamsUsers = await this.findMcamsUsers(cid, cdCodes);
 
-    const has_mcams = mcamsUsers.length > 0;
-    const is_mcams_active = mcamsUsers.some(
-      (user) => Number(user.status) === 1,
-    );
+    return result.map((item) => {
+      const cdCode = item.cd_code?.trim();
+      const usersForCdCode = mcamsUsers.filter(
+        (user) => user.cd_code?.trim() === cdCode,
+      );
 
-    return result.map((item) => ({
-      ...item,
-      has_mcams,
-      is_mcams_active,
-    }));
+      const has_mcams = usersForCdCode.length > 0;
+      const is_mcams_active = usersForCdCode.some(
+        (user) => Number(user.status) === 1,
+      );
+
+      return {
+        ...item,
+        has_mcams,
+        is_mcams_active,
+      };
+    });
   }
 
   /**
@@ -76,13 +83,13 @@ export class CdCodeService {
   private findMcamsUsers(
     cid: string,
     cdCodes: string[],
-  ): Promise<{ status: number }[]> {
+  ): Promise<{ cd_code: string | null; status: number }[]> {
     const usernameSuffix = `%${cid}`;
 
     if (cdCodes.length > 0) {
       const placeholders = cdCodes.map(() => '?').join(', ');
       return this.cms22DataSource.query(
-        `SELECT status FROM users
+        `SELECT cd_code, status FROM users
          WHERE role_id = 4
            AND (cid = ? OR username LIKE ? OR cd_code IN (${placeholders}))`,
         [cid, usernameSuffix, ...cdCodes],
@@ -90,7 +97,7 @@ export class CdCodeService {
     }
 
     return this.cms22DataSource.query(
-      `SELECT status FROM users
+      `SELECT cd_code, status FROM users
        WHERE role_id = 4
          AND (cid = ? OR username LIKE ?)`,
       [cid, usernameSuffix],
