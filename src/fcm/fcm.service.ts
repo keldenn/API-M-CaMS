@@ -273,11 +273,11 @@ export class FcmService implements OnModuleInit {
         break;
       case 'updated':
         title = 'Order Updated';
-        body = `Your order #${orderData.order_id} has been updated`;
+        body = `Your order for #${orderData.symbol} has been updated`;
         break;
       case 'deleted':
         title = 'Order Cancelled';
-        body = `Your ${orderData.side === 'B' ? 'buy' : 'sell'} order #${orderData.order_id} has been cancelled`;
+        body = `Your ${orderData.side === 'B' ? 'buy' : 'sell'} order for #${orderData.symbol} has been cancelled`;
         break;
     }
 
