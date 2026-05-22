@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { FcmToken } from '../entities/fcm-token.entity';
 import { RegisterFcmTokenDto } from './dto/register-token.dto';
 
@@ -220,6 +220,31 @@ export class FcmTokenService {
     } catch (error) {
       this.logger.error('Error deleting FCM tokens:', error);
       throw new BadRequestException('Failed to delete FCM tokens');
+    }
+  }
+
+  /**
+   * Remove stale rows when Firebase reports invalid/unregistered FCM tokens.
+   */
+  async deleteByFcmTokens(fcmTokens: string[]): Promise<number> {
+    if (!fcmTokens.length) {
+      return 0;
+    }
+
+    try {
+      const result = await this.fcmTokenRepository.delete({
+        fcm_token: In(fcmTokens),
+      });
+      const count = result.affected ?? 0;
+
+      if (count > 0) {
+        this.logger.log(`Removed ${count} stale FCM token(s) from database`);
+      }
+
+      return count;
+    } catch (error) {
+      this.logger.error('Error deleting stale FCM tokens:', error);
+      return 0;
     }
   }
 

@@ -58,6 +58,20 @@ export class FcmService implements OnModuleInit {
     }
   }
 
+  private isStaleFcmTokenError(code: string | undefined): boolean {
+    return (
+      code === 'messaging/invalid-registration-token' ||
+      code === 'messaging/registration-token-not-registered'
+    );
+  }
+
+  private async removeStaleFcmTokens(fcmTokens: string[]): Promise<void> {
+    if (fcmTokens.length === 0) {
+      return;
+    }
+    await this.fcmTokenService.deleteByFcmTokens(fcmTokens);
+  }
+
   /**
    * Send notification to a single device
    */
@@ -101,13 +115,11 @@ export class FcmService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`❌ Failed to send notification to device:`, error);
 
-      // Check if token is invalid/expired
-      if (
-        error.code === 'messaging/invalid-registration-token' ||
-        error.code === 'messaging/registration-token-not-registered'
-      ) {
-        this.logger.warn(`Invalid token detected: ${token.substring(0, 20)}...`);
-        // You could delete the invalid token here
+      if (this.isStaleFcmTokenError(error.code)) {
+        this.logger.warn(
+          `Stale FCM token removed: ${token.substring(0, 20)}... (${error.code})`,
+        );
+        await this.removeStaleFcmTokens([token]);
       }
 
       return {
@@ -178,6 +190,17 @@ export class FcmService implements OnModuleInit {
       );
       if (successfulTokens.length > 0) {
         await this.fcmTokenService.updateLastUsed(successfulTokens);
+      }
+
+      const staleTokens = tokens.filter((token, index) => {
+        const result = response.responses[index];
+        return (
+          !result.success &&
+          this.isStaleFcmTokenError(result.error?.code)
+        );
+      });
+      if (staleTokens.length > 0) {
+        await this.removeStaleFcmTokens(staleTokens);
       }
 
       // Log failures
