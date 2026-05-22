@@ -105,23 +105,36 @@ export class OtpService {
   }
 
   async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
-    const { phone_no, otp } = verifyOtpDto;
+    const { email, phone_no, otp } = verifyOtpDto;
+
+    if (!email && !phone_no) {
+      throw new BadRequestException({
+        message: ['Email and phone number not found'],
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+    }
 
     try {
-      // Find latest unverified OTP for the phone number
-      const latest = await this.smsOtpLogRepository
+      const query = this.smsOtpLogRepository
         .createQueryBuilder('otp')
-        .where('otp.phone_no = :phone', { phone: parseInt(phone_no) })
-        .andWhere('otp.status = :status', { status: 0 })
-        .orderBy('otp.id', 'DESC')
-        .limit(1)
-        .getOne();
+        .where('otp.status = :status', { status: 0 });
+
+      if (phone_no) {
+        query.andWhere('otp.phone_no = :phone', {
+          phone: parseInt(phone_no, 10),
+        });
+      } else {
+        query.andWhere('otp.email = :email', { email });
+      }
+
+      const latest = await query.orderBy('otp.id', 'DESC').limit(1).getOne();
 
       if (!latest) {
+        const channel = phone_no ? 'phone number' : 'email address';
         return {
           error: true,
-          message:
-            'No OTP found for this phone number or it has already been used',
+          message: `No OTP found for this ${channel} or it has already been used`,
           data: '',
         };
       }

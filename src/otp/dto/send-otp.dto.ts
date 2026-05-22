@@ -11,7 +11,7 @@ import {
   ValidationArguments,
 } from 'class-validator';
 
-const emptyToUndefined = ({ value }: { value: unknown }) => {
+export const emptyToUndefined = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') {
     return value;
   }
@@ -19,7 +19,7 @@ const emptyToUndefined = ({ value }: { value: unknown }) => {
   return trimmed === '' ? undefined : trimmed;
 };
 
-function RequireEmailOrPhone(validationOptions?: ValidationOptions) {
+export function RequireEmailOrPhone(validationOptions?: ValidationOptions) {
   return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'requireEmailOrPhone',

@@ -39,7 +39,8 @@ export class OtpController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Verify OTP',
-    description: 'Verify the latest unverified OTP for a phone number',
+    description:
+      'Verify the latest unverified OTP for the email and/or phone number used when sending',
   })
   @ApiResponse({
     status: 200,
