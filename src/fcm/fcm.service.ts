@@ -268,15 +268,15 @@ export class FcmService implements OnModuleInit {
 
     switch (orderData.action) {
       case 'created':
-        title = '✅ Order Placed';
+        title = 'Order Placed';
         body = `Your ${orderData.side === 'B' ? 'buy' : 'sell'} order for ${orderData.symbol || 'security'} has been placed successfully`;
         break;
       case 'updated':
-        title = '🔄 Order Updated';
+        title = 'Order Updated';
         body = `Your order #${orderData.order_id} has been updated`;
         break;
       case 'deleted':
-        title = '❌ Order Cancelled';
+        title = 'Order Cancelled';
         body = `Your ${orderData.side === 'B' ? 'buy' : 'sell'} order #${orderData.order_id} has been cancelled`;
         break;
     }
@@ -313,7 +313,7 @@ export class FcmService implements OnModuleInit {
     },
   ): Promise<void> {
     const sideText = discoveryData.side === 'B' ? 'BUY' : 'SELL';
-    const title = '🎯 Order Matched at Discovered Price!';
+    const title = 'Order Matched';
     const body = `Your ${sideText} order for ${discoveryData.symbol_name} at ₹${discoveryData.price} has been matched! Volume: ${discoveryData.volume.toLocaleString()}`;
 
     const payload: NotificationPayload = {
