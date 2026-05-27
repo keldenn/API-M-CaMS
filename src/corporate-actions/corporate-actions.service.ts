@@ -177,6 +177,7 @@ export class CorporateActionsService {
       SELECT * 
       FROM symbol s 
       WHERE s.\`status\` = 1 
+        AND s.trsstatus = 1
         AND s.security_type = "OS"
     `;
 
