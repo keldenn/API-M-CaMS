@@ -42,11 +42,25 @@ export class CdCodeService {
         AND ca.ID = ?;
     `;
 
-    const result = await this.cms22DataSource.query<CdCodeResponseDto[]>(
+    const result = await this.cms22DataSource.query<
+      Pick<CdCodeResponseDto, 'cd_code' | 'institution_id' | 'name'>[]
+    >(
       query,
       [cid],
     );
+    if (result.length === 0) {
+      return [];
+    }
 
+    const institutionIds = [
+      ...new Set(
+        result
+          .map((row) => row.institution_id?.toString().trim())
+          .filter((institutionId): institutionId is string =>
+            Boolean(institutionId),
+          ),
+      ),
+    ];
     const cdCodes = [
       ...new Set(
         result
@@ -54,53 +68,76 @@ export class CdCodeService {
           .filter((code): code is string => Boolean(code)),
       ),
     ];
-
-    const mcamsUsers = await this.findMcamsUsers(cid, cdCodes);
+    const mcamsUsers = await this.findMcamsUsers(
+      cid,
+      institutionIds,
+      cdCodes,
+    );
 
     return result.map((item) => {
       const cdCode = item.cd_code?.trim();
-      const usersForCdCode = mcamsUsers.filter(
-        (user) => user.cd_code?.trim() === cdCode,
-      );
+      const institutionId = item.institution_id?.toString().trim();
+      const usersForInstitution = mcamsUsers.filter((user) => {
+        const userCdCode = user.cd_code?.trim();
+        const userInstitutionId = user.institution_id?.toString().trim();
 
-      const has_mcams = usersForCdCode.length > 0;
-      const is_mcams_active = usersForCdCode.some(
-        (user) => Number(user.status) === 1,
-      );
+        if (cdCode && userCdCode) {
+          return userCdCode === cdCode;
+        }
+
+        return Boolean(institutionId) && userInstitutionId === institutionId;
+      });
 
       return {
         ...item,
-        has_mcams,
-        is_mcams_active,
+        has_mcams: usersForInstitution.length > 0,
+        is_mcams_active: usersForInstitution.some(
+          (user) => Number(user.status) === 1,
+        ),
       };
     });
   }
 
   /**
-   * mCaMS usernames are participant_code + cid (e.g. MEMBNBL10906002173).
-   * Match cid column, cd_code, or username suffix when cid in users differs from client_account.ID.
+   * Preferred match: users.cd_code. Fallback for null/empty users.cd_code:
+   * users.participant_code -> adm_participants.participant_code -> institution_id.
    */
   private findMcamsUsers(
     cid: string,
+    institutionIds: string[],
     cdCodes: string[],
-  ): Promise<{ cd_code: string | null; status: number }[]> {
+  ): Promise<{ cd_code: string | null; institution_id: string; status: number }[]> {
     const usernameSuffix = `%${cid}`;
+    const cdCodePlaceholders = cdCodes.map(() => '?').join(', ');
+    const institutionPlaceholders = institutionIds.map(() => '?').join(', ');
 
-    if (cdCodes.length > 0) {
-      const placeholders = cdCodes.map(() => '?').join(', ');
-      return this.cms22DataSource.query(
-        `SELECT cd_code, status FROM users
-         WHERE role_id = 4
-           AND (cid = ? OR username LIKE ? OR cd_code IN (${placeholders}))`,
-        [cid, usernameSuffix, ...cdCodes],
-      );
-    }
+    const cdCodePredicate =
+      cdCodes.length > 0 ? `u.cd_code IN (${cdCodePlaceholders})` : '1 = 0';
+    const institutionPredicate =
+      institutionIds.length > 0
+        ? `ap.institution_id IN (${institutionPlaceholders})`
+        : '1 = 0';
 
     return this.cms22DataSource.query(
-      `SELECT cd_code, status FROM users
-       WHERE role_id = 4
-         AND (cid = ? OR username LIKE ?)`,
-      [cid, usernameSuffix],
+      `
+        SELECT DISTINCT
+          u.cd_code,
+          ap.institution_id,
+          u.status
+        FROM users u
+        LEFT JOIN adm_participants ap
+          ON ap.participant_code = u.participant_code
+        WHERE u.role_id = 4
+          AND (u.cid = ? OR u.username LIKE ?)
+          AND (
+            (${cdCodePredicate})
+            OR (
+              COALESCE(TRIM(u.cd_code), '') = ''
+              AND ${institutionPredicate}
+            )
+          )
+      `,
+      [cid, usernameSuffix, ...cdCodes, ...institutionIds],
     );
   }
 }
