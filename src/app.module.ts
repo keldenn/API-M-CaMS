@@ -14,11 +14,13 @@ import { CorporateActionsModule } from './corporate-actions/corporate-actions.mo
 import { RegisterModule } from './register/register.module';
 import { RenewModule } from './renew/renew.module';
 import { CdCodeModule } from './cd-code/cd-code.module';
+import { BrokersModule } from './brokers/brokers.module';
 import { OrdersModule } from './orders/orders.module';
 import { CompanyModule } from './company/company.module';
 import { FcmModule } from './fcm/fcm.module';
 import { WalletModule } from './wallet/wallet.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
+import { ProfileModule } from './profile/profile.module';
 import {
   getDatabaseConfig,
   getFinancialDatabaseConfig,
@@ -59,11 +61,13 @@ import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.
     RegisterModule,
     RenewModule,
     CdCodeModule,
+    BrokersModule,
     OrdersModule,
     CompanyModule,
     FcmModule,
     WalletModule,
     WatchlistModule,
+    ProfileModule,
     ScheduleModule.forRoot(),
     AccountExpiryFcmModule,
   ],

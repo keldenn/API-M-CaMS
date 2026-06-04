@@ -37,6 +37,7 @@ export class CdCodeService {
       JOIN 
         adm_participants AS ap 
         ON ca.institution_id = ap.institution_id
+        AND ap.status = 1
       WHERE 
         ca.acc_type = 'I'
         AND ca.ID = ?;
@@ -127,6 +128,7 @@ export class CdCodeService {
         FROM users u
         LEFT JOIN adm_participants ap
           ON ap.participant_code = u.participant_code
+          AND ap.status = 1
         WHERE u.role_id = 4
           AND (u.cid = ? OR u.username LIKE ?)
           AND (
