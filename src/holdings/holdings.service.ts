@@ -43,8 +43,13 @@ export class HoldingsService {
         throw new Error('No email found for this client account');
       }
 
-      const holdings = await this.getStatementHoldingsByCdCode(cdCode);
-      const pdfBuffer = await this.generateStatementPdf(client, holdings);
+      const cid = client.ID?.trim();
+      if (!cid) {
+        throw new Error('CID not found for this client account');
+      }
+
+      const holdings = await this.getStatementHoldingsByCid(cid);
+      const pdfBuffer = await this.generateStatementPdf(client, cid, holdings);
       await this.sendStatementEmail(email, pdfBuffer);
 
       return email;
@@ -162,7 +167,7 @@ export class HoldingsService {
     }
   }
 
-  private async getStatementHoldingsByCdCode(cdCode: string): Promise<
+  private async getStatementHoldingsByCid(cid: string): Promise<
     {
       cd_code: string;
       symbol: string;
@@ -173,20 +178,29 @@ export class HoldingsService {
   > {
     const query = `
       SELECT
-        h.cd_code,
+        ca.cd_code,
         s.symbol,
-        h.pledge_volume,
-        h.block_volume,
-        (h.volume + h.pledge_volume + h.block_volume + h.pending_in_vol + h.pending_out_vol) AS total
-      FROM cds_holding h
-      JOIN symbol s ON h.symbol_id = s.symbol_id
-      WHERE h.cd_code = ?
+        ch.pledge_volume,
+        ch.block_volume,
+        (
+          COALESCE(ch.volume, 0) + COALESCE(ch.pledge_volume, 0)
+          + COALESCE(ch.block_volume, 0) + COALESCE(ch.pending_in_vol, 0)
+          + COALESCE(ch.pending_out_vol, 0)
+        ) AS total
+      FROM client_account ca
+      JOIN cds_holding ch ON ca.cd_code = ch.cd_code
+      JOIN symbol s ON ch.symbol_id = s.symbol_id
+      WHERE ca.ID = ?
         AND s.status = 1
-        AND (h.volume + h.pledge_volume + h.block_volume + h.pending_in_vol + h.pending_out_vol) > 0
-      ORDER BY s.symbol ASC
+        AND (
+          COALESCE(ch.volume, 0) + COALESCE(ch.pledge_volume, 0)
+          + COALESCE(ch.block_volume, 0) + COALESCE(ch.pending_in_vol, 0)
+          + COALESCE(ch.pending_out_vol, 0)
+        ) > 0
+      ORDER BY ca.cd_code, ch.symbol_id
     `;
 
-    const rows = await this.cdsHoldingRepository.query(query, [cdCode]);
+    const rows = await this.cdsHoldingRepository.query(query, [cid]);
     return rows.map((row) => ({
       cd_code: row.cd_code,
       symbol: row.symbol,
@@ -198,6 +212,7 @@ export class HoldingsService {
 
   private async generateStatementPdf(
     client: ClientAccount,
+    cid: string,
     holdings: {
       cd_code: string;
       symbol: string;
@@ -227,7 +242,9 @@ export class HoldingsService {
       doc.moveDown();
 
       doc.fontSize(10);
-      doc.text(`CID/DISN/CD CODE : ${client.ID || '-'}`);
+      doc.text(
+        `CID/DISN/CD CODE : ${cid || '-'} / ${client.cd_code?.trim() || '-'}`,
+      );
       doc.text(`NAME : ${client.f_name || ''} ${client.l_name || ''}`.trim());
       doc.text(`TPN No : ${client.tpn || '-'}`);
       doc.text(`ADDRESS : ${client.address || '-'}`);
