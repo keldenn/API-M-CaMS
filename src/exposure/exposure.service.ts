@@ -5,6 +5,15 @@ import { DataSource } from 'typeorm';
 const EXPOSURE_CREDIT_REMARKS = 'mcmas exposure credit request';
 const EXPOSURE_DEBIT_REMARKS = 'mcmas exposure debit request';
 
+export type ExposureRecord = {
+  status: number;
+  approval_status: number | null;
+  approved_date: string | null;
+  amount: string;
+  flag: number;
+  finance_date: string;
+};
+
 export type ExposureInsertParams = {
   cd_code: string;
   amount: number;
@@ -32,6 +41,40 @@ export class ExposureService {
       flag: 1,
       flag_id: 1,
     });
+  }
+
+  async getExposureHistory(cdCode: string): Promise<ExposureRecord[]> {
+    const cd_code = cdCode.trim();
+    const rows = await this.cms22DataSource.query(
+      `SELECT status,
+              approval_status,
+              approved_date,
+              amount,
+              flag,
+              finance_date
+       FROM bbo_finance
+       WHERE cd_code = ?
+       ORDER BY finance_id DESC`,
+      [cd_code],
+    );
+
+    if (!rows?.length) {
+      return [];
+    }
+
+    return rows.map((row: Record<string, unknown>) => ({
+      status: Number(row.status ?? 0),
+      approval_status:
+        row.approval_status === null || row.approval_status === undefined
+          ? null
+          : Number(row.approval_status),
+      approved_date:
+        row.approved_date != null ? String(row.approved_date) : null,
+      amount: row.amount != null ? String(row.amount) : '0',
+      flag: Number(row.flag ?? 0),
+      finance_date:
+        row.finance_date != null ? String(row.finance_date) : '',
+    }));
   }
 
   async createDebit(params: ExposureInsertParams): Promise<{ finance_id: number }> {

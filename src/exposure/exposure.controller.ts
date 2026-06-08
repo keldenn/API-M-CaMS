@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -21,6 +22,7 @@ import {
   ExposureRequestDto,
   ExposureResponseDto,
 } from './dto/exposure-request.dto';
+import { ExposureHistoryResponseDto } from './dto/exposure-history-response.dto';
 import { ExposureService } from './exposure.service';
 
 @ApiTags('exposure')
@@ -29,6 +31,64 @@ import { ExposureService } from './exposure.service';
 @ApiBearerAuth('JWT-auth')
 export class ExposureController {
   constructor(private readonly exposureService: ExposureService) {}
+
+  @Get('history')
+  @ApiOperation({
+    summary: 'Get exposure history for authenticated user',
+    description:
+      'Returns all `bbo_finance` records (`status`, `approval_status`, `approved_date`, `amount`, `flag`, `finance_date`) for the authenticated user using `cd_code` from the JWT access token only.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Exposure history fetched successfully',
+    type: ExposureHistoryResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getHistory(@Request() req): Promise<ExposureHistoryResponseDto> {
+    try {
+      const cdCode = req.user?.cd_code?.trim();
+
+      if (!cdCode) {
+        throw new HttpException(
+          'CD code not found in token',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const data = await this.exposureService.getExposureHistory(cdCode);
+
+      if (data.length === 0) {
+        return {
+          error: false,
+          message: 'No exposure records found',
+          data: [],
+        };
+      }
+
+      return {
+        error: false,
+        message: 'Successful',
+        data,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in GET exposure/history:', error);
+      throw new HttpException(
+        'Failed to fetch exposure history',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   @Post('credit')
   @HttpCode(HttpStatus.OK)
