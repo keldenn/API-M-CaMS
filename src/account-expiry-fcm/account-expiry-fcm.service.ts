@@ -56,11 +56,15 @@ export class AccountExpiryFcmService {
   }
 
   /**
-   * `users.created_at` for the user linked to this cd_code (default DB), same join as login.
+   * User subscription fields for cd_code (default DB), same join as login.
+   * NRB accounts (isNRB = 'Y') do not expire — caller should skip notifications.
    */
-  async getUserCreatedAtByCdCode(cdCode: string): Promise<Date | null> {
+  async getUserSubscriptionInfoByCdCode(cdCode: string): Promise<{
+    createdAt: Date;
+    isNrb: string;
+  } | null> {
     const query = `
-      SELECT u.created_at AS created_at
+      SELECT u.created_at AS created_at, u.isNRB AS isNRB
       FROM users u
       INNER JOIN linkuser l ON l.username = u.username
       WHERE l.client_code = ?
@@ -71,7 +75,10 @@ export class AccountExpiryFcmService {
     if (!row?.created_at) {
       return null;
     }
-    return new Date(row.created_at);
+    return {
+      createdAt: new Date(row.created_at),
+      isNrb: String(row.isNRB ?? 'N').trim().toUpperCase(),
+    };
   }
 
   /**
@@ -89,13 +96,18 @@ export class AccountExpiryFcmService {
 
     for (const cdCode of cdCodes) {
       try {
-        const createdAt = await this.getUserCreatedAtByCdCode(cdCode);
-        if (!createdAt) {
+        const userInfo = await this.getUserSubscriptionInfoByCdCode(cdCode);
+        if (!userInfo) {
           skipped++;
           continue;
         }
 
-        const expiryDate = addOneYear(createdAt);
+        if (userInfo.isNrb === 'Y') {
+          skipped++;
+          continue;
+        }
+
+        const expiryDate = addOneYear(userInfo.createdAt);
         const now = new Date();
         const daysUntil = calendarDaysBetween(now, expiryDate);
         const isExpired = daysUntil <= 0;
