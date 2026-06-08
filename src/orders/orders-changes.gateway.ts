@@ -30,6 +30,19 @@ interface OrderSnapshot {
   order_entry: string;
 }
 
+interface CancelledAuditSnapshot {
+  flag_id: string;
+  cd_code: string;
+  symbol_id: number;
+  side: string;
+  price: string;
+  buy_vol: number | null;
+  sell_vol: number | null;
+  order_entry: string;
+  order_date: string;
+  flag: string;
+}
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -51,6 +64,7 @@ export class OrdersChangesGateway
   private monitoringInterval: NodeJS.Timeout | null = null;
   private readonly POLLING_INTERVAL_MS = 5000; // 5 seconds
   private previousOrdersSnapshot = new Map<number, OrderSnapshot>();
+  private previousCancelledAuditSnapshot = new Map<string, CancelledAuditSnapshot>();
   
   // Price Discovery tracking
   private discoveredPrices = new Map<number, DiscoveredPriceInfo>(); // key: symbol_id
@@ -70,6 +84,7 @@ export class OrdersChangesGateway
     this.logger.log('🌐 OrdersChanges Gateway initialized');
     this.logger.log('   Namespace: /ordersChanges');
     this.logger.log('   Purpose: Real-time order change detection');
+    this.logger.log('   Cancellations: orders_audit flag=C');
     this.logger.log('   Polling Interval: 5 seconds (when clients connected)');
   }
 
@@ -106,11 +121,13 @@ export class OrdersChangesGateway
       return; // Already monitoring
     }
 
-    // Get initial snapshot
+    // Get initial snapshots
     await this.loadOrdersSnapshot();
+    await this.loadCancelledAuditSnapshot();
 
     this.monitoringInterval = setInterval(async () => {
       await this.checkForOrderChanges();
+      await this.checkForCancelledOrders();
     }, this.POLLING_INTERVAL_MS);
 
     this.logger.log('✅ Order monitoring active');
@@ -124,6 +141,7 @@ export class OrdersChangesGateway
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
       this.previousOrdersSnapshot.clear();
+      this.previousCancelledAuditSnapshot.clear();
       this.logger.log('⏹️  Order monitoring stopped');
     }
   }
@@ -205,14 +223,6 @@ export class OrdersChangesGateway
         currentOrdersMap.set(order.order_id, order);
       });
 
-      // Detect DELETIONS
-      const deletedOrders: OrderSnapshot[] = [];
-      this.previousOrdersSnapshot.forEach((prevOrder, orderId) => {
-        if (!currentOrdersMap.has(orderId)) {
-          deletedOrders.push(prevOrder);
-        }
-      });
-
       // Detect INSERTIONS (new orders)
       const createdOrders: OrderSnapshot[] = [];
       currentOrdersMap.forEach((currentOrder, orderId) => {
@@ -231,13 +241,6 @@ export class OrdersChangesGateway
       });
 
       // Emit events if changes detected
-      if (deletedOrders.length > 0) {
-        this.logger.log(`🗑️  Detected ${deletedOrders.length} deleted order(s)`);
-        deletedOrders.forEach((order) => {
-          this.broadcastOrderDeleted(order);
-        });
-      }
-
       if (createdOrders.length > 0) {
         this.logger.log(`➕ Detected ${createdOrders.length} new order(s)`);
         createdOrders.forEach((order) => {
@@ -285,12 +288,120 @@ export class OrdersChangesGateway
   }
 
   /**
-   * Broadcast order deleted event
+   * Load cancelled orders snapshot from orders_audit (flag = 'C')
    */
-  private broadcastOrderDeleted(order: OrderSnapshot) {
+  private async loadCancelledAuditSnapshot() {
+    try {
+      const cancelledOrders = await this.fetchCancelledAuditOrders();
+      this.previousCancelledAuditSnapshot.clear();
+      cancelledOrders.forEach((row) => {
+        this.previousCancelledAuditSnapshot.set(
+          this.getCancelledAuditKey(row),
+          row,
+        );
+      });
+
+      this.logger.debug(
+        `📸 Loaded cancelled audit snapshot: ${cancelledOrders.length} order(s)`,
+      );
+    } catch (error) {
+      this.logger.error('Error loading cancelled audit snapshot:', error);
+    }
+  }
+
+  /**
+   * Fetch cancelled orders from orders_audit where flag = 'C'
+   */
+  private async fetchCancelledAuditOrders(
+    limit?: number,
+  ): Promise<CancelledAuditSnapshot[]> {
+    const limitClause = limit ? `LIMIT ${limit}` : '';
+    const query = `
+      SELECT
+        CAST(flag_id AS CHAR) AS flag_id,
+        cd_code,
+        symbol_id,
+        side,
+        CAST(price AS CHAR) AS price,
+        buy_vol,
+        sell_vol,
+        order_entry,
+        order_date,
+        flag
+      FROM orders_audit
+      WHERE flag = 'C'
+      ORDER BY order_date DESC
+      ${limitClause}
+    `;
+
+    const rows = await this.cms22DataSource.query(query);
+    return rows.map((row: any) => ({
+      flag_id: row.flag_id,
+      cd_code: row.cd_code,
+      symbol_id: row.symbol_id,
+      side: row.side,
+      price: row.price,
+      buy_vol: row.buy_vol,
+      sell_vol: row.sell_vol,
+      order_entry: row.order_entry,
+      order_date: row.order_date
+        ? new Date(row.order_date).toISOString()
+        : '',
+      flag: row.flag,
+    }));
+  }
+
+  private getCancelledAuditKey(row: {
+    flag_id: string | number;
+    order_date: string | Date;
+  }): string {
+    const orderDate =
+      row.order_date instanceof Date
+        ? row.order_date.toISOString()
+        : String(row.order_date);
+    return `${row.flag_id}:${orderDate}`;
+  }
+
+  /**
+   * Detect newly cancelled orders via orders_audit flag = 'C'
+   */
+  private async checkForCancelledOrders() {
+    try {
+      const currentCancelled = await this.fetchCancelledAuditOrders();
+      const currentCancelledMap = new Map<string, CancelledAuditSnapshot>();
+      currentCancelled.forEach((row) => {
+        currentCancelledMap.set(this.getCancelledAuditKey(row), row);
+      });
+
+      const newlyCancelled: CancelledAuditSnapshot[] = [];
+      currentCancelledMap.forEach((row, key) => {
+        if (!this.previousCancelledAuditSnapshot.has(key)) {
+          newlyCancelled.push(row);
+        }
+      });
+
+      if (newlyCancelled.length > 0) {
+        this.logger.log(
+          `🚫 Detected ${newlyCancelled.length} cancelled order(s) in orders_audit`,
+        );
+        newlyCancelled.forEach((row) => {
+          this.broadcastOrderDeleted(row);
+        });
+      }
+
+      this.previousCancelledAuditSnapshot = currentCancelledMap;
+    } catch (error) {
+      this.logger.error('Error checking for cancelled orders:', error);
+    }
+  }
+
+  /**
+   * Broadcast orderDeleted (sourced from orders_audit flag = 'C' only)
+   * Event name/shape kept for existing mobile/web clients.
+   */
+  private broadcastOrderDeleted(order: CancelledAuditSnapshot) {
     const event = {
       type: 'orderDeleted',
-      order_id: order.order_id,
       cd_code: order.cd_code,
       symbol_id: order.symbol_id,
       side: order.side,
@@ -303,7 +414,7 @@ export class OrdersChangesGateway
 
     this.server.emit('orderDeleted', event);
     this.logger.log(
-      `📤 Broadcasted orderDeleted: order_id=${order.order_id}, cd_code=${order.cd_code}`,
+      `📤 Broadcasted orderDeleted (audit flag=C): flag_id=${order.flag_id}, cd_code=${order.cd_code}`,
     );
   }
 

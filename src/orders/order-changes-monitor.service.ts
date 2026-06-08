@@ -7,14 +7,14 @@ import { DataSource } from 'typeorm';
 
 export interface OrderChangeEvent {
   type: 'orderDeleted' | 'orderCreated' | 'orderUpdated';
-  order_id: number;
+  order_id?: number;
   cd_code: string;
   symbol_id: number;
   side: string;
   price: string;
   volume: number;
   flag_id: string;
-  order_entry: string;
+  order_entry?: string;
   timestamp: string;
   changes?: any;
 }
@@ -211,11 +211,11 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
       this.logger.error('❌ All reconnection attempts exhausted (should not happen with Infinity)');
     });
 
-    // Order Deleted Event
+    // orderDeleted — only emitted when orders_audit flag = 'C' (not raw orders table removal)
     this.socket.on('orderDeleted', (event: OrderChangeEvent) => {
       this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      this.logger.log('🗑️  ORDER DELETED EVENT RECEIVED');
-      this.logger.log(`   Order ID: ${event.order_id}`);
+      this.logger.log('🗑️  ORDER DELETED EVENT RECEIVED (orders_audit flag=C)');
+      this.logger.log(`   Flag ID: ${event.flag_id}`);
       this.logger.log(`   CD Code: ${event.cd_code}`);
       this.logger.log(`   Symbol ID: ${event.symbol_id}`);
       this.logger.log(`   Side: ${event.side === 'B' ? 'BUY' : 'SELL'}`);
@@ -224,7 +224,7 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
       this.logger.log(`   Timestamp: ${event.timestamp}`);
       this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      this.enqueueNotification(event);
+      this.enqueueNotification({ ...event, type: 'orderDeleted' });
     });
 
     // Order Created Event
@@ -374,9 +374,11 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
         action = 'updated';
       }
 
+      const orderIdentifier = event.order_id ?? event.flag_id;
+
       // Send FCM notification with timeout
       await this.sendFcmWithTimeout(event.cd_code, {
-        order_id: event.order_id,
+        order_id: orderIdentifier,
         symbol: symbolName,
         side: event.side,
         price: event.price,
@@ -388,14 +390,15 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
       this.recordFcmSuccess();
 
       this.logger.log(
-        `✅ FCM notification sent successfully for order ${event.order_id}`,
+        `✅ FCM notification sent successfully for ${event.type === 'orderDeleted' ? 'flag_id' : 'order_id'} ${orderIdentifier}`,
       );
     } catch (error) {
       // Failure - update circuit breaker
       this.recordFcmFailure();
 
+      const orderIdentifier = event.order_id ?? event.flag_id;
       this.logger.error(
-        `❌ Failed to send FCM notification for order ${event.order_id}:`,
+        `❌ Failed to send FCM notification for ${event.type} ${orderIdentifier}:`,
         error.message,
       );
 
@@ -408,7 +411,7 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
         );
       } else {
         this.logger.error(
-          `❌ Max retries reached for order ${event.order_id}, dropping notification`,
+          `❌ Max retries reached for ${event.type} ${orderIdentifier}, dropping notification`,
         );
       }
     }
