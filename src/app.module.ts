@@ -19,6 +19,7 @@ import { OrdersModule } from './orders/orders.module';
 import { CompanyModule } from './company/company.module';
 import { FcmModule } from './fcm/fcm.module';
 import { WalletModule } from './wallet/wallet.module';
+import { ExposureModule } from './exposure/exposure.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
 import { ProfileModule } from './profile/profile.module';
 import {
@@ -66,6 +67,7 @@ import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.
     CompanyModule,
     FcmModule,
     WalletModule,
+    ExposureModule,
     WatchlistModule,
     ProfileModule,
     ScheduleModule.forRoot(),
