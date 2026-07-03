@@ -5,6 +5,7 @@ import { OrdersService } from './orders.service';
 import { PendingOrdersGateway } from './pending-orders.gateway';
 import { OrdersChangesGateway } from './orders-changes.gateway';
 import { OrderChangesMonitorService } from './order-changes-monitor.service';
+import { OrdersMaintenanceGuard } from './guards/orders-maintenance.guard';
 import { Order } from '../entities/order.entity';
 import { MobileApiLog } from '../entities/mobile-api-log.entity';
 import { McamsWallet } from '../entities/mcams-wallet.entity';
@@ -27,6 +28,7 @@ import { FcmModule } from '../fcm/fcm.module';
     PendingOrdersGateway,
     OrdersChangesGateway,
     OrderChangesMonitorService,
+    OrdersMaintenanceGuard,
   ],
   exports: [OrdersService, PendingOrdersGateway, OrdersChangesGateway],
 })

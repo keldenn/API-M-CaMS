@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { FcmService } from '../fcm/fcm.service';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { isOrdersMaintenanceMode } from './orders-maintenance';
 
 export interface OrderChangeEvent {
   type: 'orderDeleted' | 'orderCreated' | 'orderUpdated';
@@ -66,6 +67,13 @@ export class OrderChangesMonitorService implements OnModuleInit, OnModuleDestroy
   ) {}
 
   async onModuleInit() {
+    if (isOrdersMaintenanceMode()) {
+      this.logger.warn(
+        'Order Changes Monitor Service skipped: ORDERS_MAINTENANCE_MODE=1',
+      );
+      return;
+    }
+
     this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     this.logger.log('🚀 Order Changes Monitor Service STARTING...');
     this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

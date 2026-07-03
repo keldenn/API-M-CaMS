@@ -12,6 +12,10 @@ import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { PendingOrdersResponseDto } from './dto/pending-orders.dto';
+import {
+  isOrdersMaintenanceMode,
+  ORDERS_MAINTENANCE_MESSAGE,
+} from './orders-maintenance';
 
 @WebSocketGateway({
   cors: {
@@ -100,6 +104,14 @@ export class PendingOrdersGateway
     @MessageBody() data: { username: string },
     @ConnectedSocket() client: Socket,
   ) {
+    if (isOrdersMaintenanceMode()) {
+      client.emit('error', {
+        error: true,
+        message: ORDERS_MAINTENANCE_MESSAGE,
+      });
+      return { status: 'error', message: ORDERS_MAINTENANCE_MESSAGE };
+    }
+
     // Validate required parameters
     if (!data.username || !data.username.trim()) {
       client.emit('error', {

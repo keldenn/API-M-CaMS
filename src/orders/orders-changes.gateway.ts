@@ -12,6 +12,10 @@ import { DataSource } from 'typeorm';
 import { OrdersService } from './orders.service';
 import { FcmService } from '../fcm/fcm.service';
 import {
+  isOrdersMaintenanceMode,
+  ORDERS_MAINTENANCE_MESSAGE,
+} from './orders-maintenance';
+import {
   DiscoveredPriceInfo,
   AffectedUser,
   PriceDiscoveredEvent,
@@ -89,6 +93,18 @@ export class OrdersChangesGateway
   }
 
   async handleConnection(client: Socket) {
+    if (isOrdersMaintenanceMode()) {
+      this.logger.warn(
+        `Rejected ordersChanges connection ${client.id}: maintenance mode`,
+      );
+      client.emit('error', {
+        error: true,
+        message: ORDERS_MAINTENANCE_MESSAGE,
+      });
+      client.disconnect(true);
+      return;
+    }
+
     this.logger.log(`📡 Client connected to ordersChanges: ${client.id}`);
     this.connectedClients.add(client.id);
 

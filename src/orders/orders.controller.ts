@@ -24,11 +24,12 @@ import { OrderResponseDto } from './dto/order-response.dto';
 import { PendingOrdersResponseDto, PendingOrdersRequestDto } from './dto/pending-orders.dto';
 import { ExecutedOrdersResponseDto } from './dto/executed-orders.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OrdersMaintenanceGuard } from './guards/orders-maintenance.guard';
 import { OrderChangesMonitorService, CircuitState } from './order-changes-monitor.service';
 
 @ApiTags('Order')
 @Controller('order')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrdersMaintenanceGuard)
 @ApiBearerAuth('JWT-auth')
 export class OrdersController {
   constructor(

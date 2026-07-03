@@ -10,6 +10,7 @@ import {
   ExecutedOrdersResponseDto,
   ExecutedOrderItemDto,
 } from './dto/executed-orders.dto';
+import { assertOrdersAvailable } from './orders-maintenance';
 
 @Injectable()
 export class OrdersService {
@@ -633,6 +634,8 @@ export class OrdersService {
    * Main method to create a new order
    */
   async createNewOrder(dto: NewOrderDto): Promise<OrderResponseDto> {
+    assertOrdersAvailable();
+
     // Static values
     const staticNewOrder = 'MobileOrder';
     const staticBrokerUsername = 'MEMRSEBIT';
@@ -772,6 +775,8 @@ export class OrdersService {
    * Main method to update an existing order
    */
   async updateOrder(dto: UpdateOrderDto): Promise<OrderResponseDto> {
+    assertOrdersAvailable();
+
     // Static values
     const staticUpdateOrdersAPI = 'UpdateOrdersAPI';
     const staticBrokerUsername = 'MEMRSEBIT';
@@ -1106,6 +1111,8 @@ export class OrdersService {
    * Main method to delete an order
    */
   async deleteOrder(dto: DeleteOrderDto): Promise<OrderResponseDto> {
+    assertOrdersAvailable();
+
     // Static value
     const staticDeleteOrderAPI = 'DeleteOrderAPI';
 
@@ -1360,6 +1367,8 @@ export class OrdersService {
    * Get pending orders for a username
    */
   async getPendingOrders(username: string): Promise<PendingOrdersResponseDto> {
+    assertOrdersAvailable();
+
     if (!username || !username.trim()) {
       throw new BadRequestException('Username is required');
     }
@@ -1421,6 +1430,8 @@ export class OrdersService {
    * Get executed orders for a CD code
    */
   async getExecutedOrders(cdCode: string): Promise<ExecutedOrdersResponseDto> {
+    assertOrdersAvailable();
+
     if (!cdCode || !cdCode.trim()) {
       throw new BadRequestException('CD code is required');
     }
