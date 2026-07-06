@@ -21,6 +21,9 @@ import {
   BondExecutedHistoryResponseDto,
 } from './dto/bond-history.dto';
 import {
+  BondOrderbookResponseDto,
+} from './dto/bond-orderbook.dto';
+import {
   BondUpdateOrderRequestDto,
   BondUpdateOrderResponseDto,
 } from './dto/bond-update-order.dto';
@@ -742,6 +745,44 @@ export class BondTradingService {
         created_at: this.formatDbDateTime(row.created_at),
       }),
     );
+    return { data, count: data.length };
+  }
+
+  async getBondOrderbook(symbolId: number): Promise<BondOrderbookResponseDto> {
+    const query = `
+      SELECT
+        o.price,
+        SUM(
+          CASE
+            WHEN LOWER(TRIM(IFNULL(o.side, ''))) = 'b' THEN COALESCE(NULLIF(o.buy_vol, 0), o.order_size, 0)
+            WHEN o.buy_vol > 0 AND (o.sell_vol IS NULL OR o.sell_vol = 0) THEN o.buy_vol
+            ELSE 0
+          END
+        ) AS buy_vol,
+        SUM(
+          CASE
+            WHEN LOWER(TRIM(IFNULL(o.side, ''))) = 's' THEN COALESCE(NULLIF(o.sell_vol, 0), o.order_size, 0)
+            WHEN o.sell_vol > 0 AND (o.buy_vol IS NULL OR o.buy_vol = 0) THEN o.sell_vol
+            ELSE 0
+          END
+        ) AS sell_vol
+      FROM bond_orders o
+      INNER JOIN symbol s ON o.symbol_id = s.symbol_id
+      WHERE o.symbol_id = ?
+        AND o.order_type = 'OTC'
+        AND o.status IN ('OPEN', 'PENDING', 'UPDATED')
+      GROUP BY o.price
+      HAVING buy_vol > 0 OR sell_vol > 0
+      ORDER BY o.price DESC
+    `;
+
+    const rows = await this.cms22DataSource.query(query, [symbolId]);
+    const data = rows.map((row: Record<string, unknown>) => ({
+      price: Number(row.price ?? 0),
+      buy_vol: Number(row.buy_vol ?? 0),
+      sell_vol: Number(row.sell_vol ?? 0),
+    }));
+
     return { data, count: data.length };
   }
 

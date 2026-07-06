@@ -39,6 +39,10 @@ import {
   BondHistoryRequestDto,
   BondExecutedHistoryResponseDto,
 } from './dto/bond-history.dto';
+import {
+  BondOrderbookRequestDto,
+  BondOrderbookResponseDto,
+} from './dto/bond-orderbook.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SecurityTypeResponseDto } from './dto/security-type-response.dto';
 import { BondTradingService } from './trading.service';
@@ -268,6 +272,26 @@ export class BondTradingController {
   ): Promise<BondExecutedHistoryResponseDto> {
     const cdCode = this.resolveCdCodeFromPostBody(req.user, dto.cd_code);
     return this.bondTradingService.getBondExecutedHistory(cdCode);
+  }
+
+  @Post('orderbook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get bond orderbook by symbol',
+    description:
+      'Returns aggregated buy/sell volumes at each price level from `bond_orders` for the selected bond `symbol_id` (OTC orders with status OPEN, PENDING, or UPDATED).',
+  })
+  @ApiBody({ type: BondOrderbookRequestDto })
+  @ApiOkResponse({
+    description: 'Bond orderbook retrieved successfully',
+    type: BondOrderbookResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'symbol_id missing/invalid' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - JWT token required' })
+  async getBondOrderbook(
+    @Body() dto: BondOrderbookRequestDto,
+  ): Promise<BondOrderbookResponseDto> {
+    return this.bondTradingService.getBondOrderbook(dto.symbol_id);
   }
 
   @Post('update_order')
