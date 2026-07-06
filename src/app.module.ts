@@ -23,6 +23,7 @@ import { ExposureModule } from './exposure/exposure.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
 import { ProfileModule } from './profile/profile.module';
 import { BondModule } from './bond/bond.module';
+import { RightsModule } from './rights/rights.module';
 import {
   getDatabaseConfig,
   getFinancialDatabaseConfig,
@@ -72,6 +73,7 @@ import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.
     WatchlistModule,
     ProfileModule,
     BondModule,
+    RightsModule,
     ScheduleModule.forRoot(),
     AccountExpiryFcmModule,
   ],

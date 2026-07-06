@@ -35,6 +35,10 @@ import {
 } from './dto/bond-cancel-order.dto';
 import { BondVolRequestDto, BondVolResponseDto } from './dto/bond-vol.dto';
 import { BondYtmRequestDto, BondYtmResponseDto } from './dto/bond-ytm.dto';
+import {
+  BondHistoryRequestDto,
+  BondExecutedHistoryResponseDto,
+} from './dto/bond-history.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SecurityTypeResponseDto } from './dto/security-type-response.dto';
 import { BondTradingService } from './trading.service';
@@ -241,6 +245,29 @@ export class BondTradingController {
   ): Promise<BondPendingOrdersResponseDto> {
     const cd_code = this.resolveCdCodeFromJwt(req.user);
     return this.bondTradingService.getPendingOrders(cd_code);
+  }
+
+  @Get('history')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get bond executed order history',
+    description:
+      'Returns executed bond orders from `bond_executed_orders` for the given `cd_code` in the request body. JWT required; if the token includes `cd_code`, it must match the body.',
+  })
+  @ApiBody({ type: BondHistoryRequestDto })
+  @ApiOkResponse({
+    description: 'Bond executed history retrieved successfully',
+    type: BondExecutedHistoryResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'cd_code missing/invalid' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - JWT token required' })
+  @ApiResponse({ status: 403, description: 'CD code does not match authenticated user' })
+  async getBondHistory(
+    @Request() req: { user?: { cd_code?: string } },
+    @Body() dto: BondHistoryRequestDto,
+  ): Promise<BondExecutedHistoryResponseDto> {
+    const cdCode = this.resolveCdCodeFromPostBody(req.user, dto.cd_code);
+    return this.bondTradingService.getBondExecutedHistory(cdCode);
   }
 
   @Post('update_order')

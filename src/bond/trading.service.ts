@@ -17,6 +17,10 @@ import {
   BondPendingOrdersResponseDto,
 } from './dto/bond-pending-order.dto';
 import {
+  BondExecutedHistoryItemDto,
+  BondExecutedHistoryResponseDto,
+} from './dto/bond-history.dto';
+import {
   BondUpdateOrderRequestDto,
   BondUpdateOrderResponseDto,
 } from './dto/bond-update-order.dto';
@@ -698,6 +702,49 @@ export class BondTradingService {
     return { data, count: data.length };
   }
 
+  async getBondExecutedHistory(
+    cdCode: string,
+  ): Promise<BondExecutedHistoryResponseDto> {
+    const query = `
+      SELECT b.id, b.cd_code, b.participant_code, b.sub_user, b.member_broker,
+             b.order_date, b.symbol_id, b.order_exe_price, b.lot_size_execute,
+             b.status, b.side, b.lot_check, b.flag_id, b.dirty_price,
+             b.accur_rate, b.ytm, b.order_type, b.created_at,
+             s.symbol, s.name, s.security_type
+      FROM bond_executed_orders b
+      LEFT JOIN symbol s ON b.symbol_id = s.symbol_id
+      WHERE b.cd_code = ?
+      ORDER BY b.order_date DESC, b.id DESC
+    `;
+    const rows = await this.cms22DataSource.query(query, [cdCode.trim()]);
+    const data: BondExecutedHistoryItemDto[] = rows.map(
+      (row: Record<string, unknown>) => ({
+        id: Number(row.id ?? 0),
+        cd_code: String(row.cd_code ?? ''),
+        participant_code: String(row.participant_code ?? ''),
+        sub_user: String(row.sub_user ?? ''),
+        member_broker: String(row.member_broker ?? ''),
+        order_date: this.formatDbDateTime(row.order_date),
+        symbol_id: Number(row.symbol_id ?? 0),
+        symbol: String(row.symbol ?? ''),
+        name: String(row.name ?? ''),
+        security_type: String(row.security_type ?? ''),
+        order_exe_price: Number(row.order_exe_price ?? 0),
+        lot_size_execute: Number(row.lot_size_execute ?? 0),
+        status: Number(row.status ?? 0),
+        side: String(row.side ?? '').trim(),
+        lot_check: Number(row.lot_check ?? 0),
+        flag_id: String(row.flag_id ?? ''),
+        dirty_price: Number(row.dirty_price ?? 0),
+        accur_rate: Number(row.accur_rate ?? 0),
+        ytm: Number(row.ytm ?? 0),
+        order_type: String(row.order_type ?? ''),
+        created_at: this.formatDbDateTime(row.created_at),
+      }),
+    );
+    return { data, count: data.length };
+  }
+
   async updateBondOrder(
     cdCode: string,
     dto: BondUpdateOrderRequestDto,
@@ -1322,6 +1369,16 @@ export class BondTradingService {
 
   private isSameDay(a: Date, b: Date): boolean {
     return this.formatDate(a) === this.formatDate(b);
+  }
+
+  private formatDbDateTime(value: unknown): string {
+    if (!value) {
+      return '';
+    }
+    return new Date(String(value))
+      .toISOString()
+      .replace('T', ' ')
+      .substring(0, 19);
   }
 
   private roundTo(value: number, scale: number): number {

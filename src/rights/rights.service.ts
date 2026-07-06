@@ -1,0 +1,497 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import * as nodemailer from 'nodemailer';
+import { RightsCheckExistItemDto } from './dto/check-exist-response.dto';
+import { assertRightsSubscriptionWindow } from './rights-subscription-window';
+
+const RIGHTS_SYMBOL_ID = 20;
+const RIGHTS_CORP_ANNOUNCEMENT_ID = 120;
+const RIGHTS_FEE_SURCHARGE = 100;
+
+type ClientRightsContext = {
+  cid: string;
+  email: string;
+  phone: string;
+};
+
+type RightsTempRecord = {
+  cd_code: string;
+  vol_applied: number;
+  amount: number;
+  email: string;
+  phone: string;
+  cid: string;
+};
+
+export type SubscribeRightsParams = {
+  cdCode: string;
+  orderNo: string;
+  amount: number;
+  volApplied: number;
+  price: number;
+  details: string;
+};
+
+export type HandleRightsCallbackResult = {
+  orderNo: string;
+  orderId: number;
+  emailStatus: number;
+  smsSent: boolean;
+  emailSent: boolean;
+};
+
+@Injectable()
+export class RightsService {
+  constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async checkRightsExist(cdCode: string): Promise<RightsCheckExistItemDto[]> {
+    assertRightsSubscriptionWindow();
+
+    const query = `
+      SELECT
+        a.client_id,
+        a.cd_code,
+        a.f_name,
+        a.l_name,
+        a.phone,
+        a.email,
+        a.bank_id,
+        a.bank_account,
+        s.volume,
+        s.ribon_volume,
+        s.record_date,
+        COALESCE(SUM(r.order_size), 0) AS order_total,
+        (s.ribon_volume - COALESCE(SUM(r.order_size), 0)) AS available_rights
+      FROM client_account AS a
+      INNER JOIN spot_date_holding AS s
+        ON a.client_id = s.client_id
+      LEFT JOIN rights_issue AS r
+        ON a.cd_code = r.cd_code
+        AND r.symbol_id = ?
+        AND r.type IN ('S', 'R')
+      WHERE
+        a.cd_code = ?
+        AND s.corp_announcement_id = ?
+        AND s.symbol_id = ?
+        AND s.status = 1
+        AND s.ribon_volume > 0
+      GROUP BY
+        a.client_id,
+        a.cd_code,
+        a.f_name,
+        a.l_name,
+        a.phone,
+        a.email,
+        a.bank_id,
+        a.bank_account,
+        s.volume,
+        s.ribon_volume,
+        s.record_date
+    `;
+
+    const rows = await this.dataSource.query(query, [
+      RIGHTS_SYMBOL_ID,
+      cdCode.trim(),
+      RIGHTS_CORP_ANNOUNCEMENT_ID,
+      RIGHTS_SYMBOL_ID,
+    ]);
+
+    if (!rows?.length) {
+      return [];
+    }
+
+    return rows.map((row: Record<string, unknown>) => ({
+      client_id: Number(row.client_id),
+      cd_code: String(row.cd_code ?? '').trim(),
+      f_name: String(row.f_name ?? '').trim(),
+      l_name: String(row.l_name ?? '').trim(),
+      phone: String(row.phone ?? '').trim(),
+      email: String(row.email ?? '').trim(),
+      bank_id: Number(row.bank_id ?? 0),
+      bank_account: String(row.bank_account ?? '').trim(),
+      volume: Number(row.volume ?? 0),
+      ribon_volume: Number(row.ribon_volume ?? 0),
+      record_date:
+        row.record_date != null ? String(row.record_date).slice(0, 10) : '',
+      order_total: Number(row.order_total ?? 0),
+      available_rights: Number(row.available_rights ?? 0),
+    }));
+  }
+
+  async subscribeRights(params: SubscribeRightsParams): Promise<number> {
+    const cdCode = params.cdCode.trim();
+    const client = await this.getClientContextByCdCode(cdCode);
+
+    const query = `
+      INSERT INTO rights_issue_online_temp
+      (
+        bfs_orderid,
+        dateentry,
+        cd_code,
+        symbol_id,
+        amount,
+        payment_status,
+        type,
+        name,
+        email,
+        phone,
+        vol_applied,
+        price,
+        details,
+        employee_id,
+        AS_Check,
+        client_acc_check
+      )
+      VALUES
+      (
+        ?,
+        NOW(),
+        ?,
+        ?,
+        ?,
+        'PE',
+        'AR',
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        '0',
+        0
+      )
+    `;
+
+    const result = await this.dataSource.query(query, [
+      params.orderNo.trim(),
+      cdCode,
+      RIGHTS_SYMBOL_ID,
+      params.amount,
+      client.cid,
+      client.email,
+      client.phone,
+      params.volApplied,
+      params.price,
+      params.details.trim(),
+      client.cid,
+    ]);
+
+    return Number(result?.insertId ?? 0);
+  }
+
+  async handleRightsCallback(
+    orderNo: string,
+    tokenCdCode: string,
+  ): Promise<HandleRightsCallbackResult> {
+    const normalizedOrderNo = orderNo.trim();
+    const normalizedCdCode = tokenCdCode.trim();
+
+    const tempRecords = await this.getSubscriptionTempRecords(normalizedOrderNo);
+    if (!tempRecords.length) {
+      throw new BadRequestException(
+        'No pending rights subscription found for this order',
+      );
+    }
+
+    for (const record of tempRecords) {
+      if (record.cd_code !== normalizedCdCode) {
+        throw new ForbiddenException(
+          'CD code does not match authenticated user',
+        );
+      }
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let orderId = 0;
+
+    try {
+      await queryRunner.query(
+        `UPDATE rights_issue_online_temp
+         SET bfs_code = '00', type = 'AC'
+         WHERE bfs_orderid = ?`,
+        [normalizedOrderNo],
+      );
+
+      for (const record of tempRecords) {
+        orderId = await this.upsertRightsIssueRecord(queryRunner, record);
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    const primaryRecord = tempRecords[0];
+    const notificationMessage = this.buildRightsNotificationMessage(
+      normalizedOrderNo,
+      primaryRecord,
+    );
+    const smsSent = primaryRecord.phone
+      ? await this.sendSms(primaryRecord.phone, notificationMessage)
+      : false;
+    const emailSent = primaryRecord.email
+      ? await this.sendRightsEmail(
+          primaryRecord.email,
+          normalizedOrderNo,
+          notificationMessage,
+        )
+      : false;
+
+    let emailStatus = 0;
+    if (smsSent || emailSent) {
+      await this.dataSource.query(
+        `UPDATE rights_issue
+         SET email_status = 1
+         WHERE order_id = ?`,
+        [orderId],
+      );
+      emailStatus = 1;
+    }
+
+    return {
+      orderNo: normalizedOrderNo,
+      orderId,
+      emailStatus,
+      smsSent,
+      emailSent,
+    };
+  }
+
+  private async getSubscriptionTempRecords(
+    orderNo: string,
+  ): Promise<RightsTempRecord[]> {
+    const rows = await this.dataSource.query(
+      `SELECT *
+       FROM rights_issue_online_temp
+       WHERE bfs_orderid = ?
+         AND CAST(vol_applied AS UNSIGNED) > 0`,
+      [orderNo],
+    );
+
+    if (!rows?.length) {
+      return [];
+    }
+
+    return rows.map((row: Record<string, unknown>) => ({
+      cd_code: String(row.cd_code ?? '').trim(),
+      vol_applied: Number(row.vol_applied ?? 0),
+      amount: Number(row.amount ?? 0),
+      email: String(row.email ?? '').trim(),
+      phone: String(row.phone ?? '').trim(),
+      cid: String(row.name ?? '').trim(),
+    }));
+  }
+
+  private async upsertRightsIssueRecord(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    record: RightsTempRecord,
+  ): Promise<number> {
+    const existingRows = await queryRunner.query(
+      `SELECT *
+       FROM rights_issue
+       WHERE cd_code = ?
+         AND symbol_id = ?`,
+      [record.cd_code, RIGHTS_SYMBOL_ID],
+    );
+
+    const existing = existingRows?.[0];
+    if (existing) {
+      const existingOrderSize = Number(existing.order_size ?? 0);
+      const existingTotalAmount = Number(existing.total_amount ?? 0);
+      const newOrderSize = existingOrderSize + record.vol_applied;
+      const newTotalAmount =
+        existingTotalAmount + record.amount + RIGHTS_FEE_SURCHARGE;
+      const rightsIssued = this.padOrderSize(newOrderSize);
+      const orderId = Number(existing.order_id);
+
+      await queryRunner.query(
+        `UPDATE rights_issue
+         SET order_size = ?,
+             total_amount = ?,
+             rights_issued = ?
+         WHERE order_id = ?`,
+        [newOrderSize, newTotalAmount, rightsIssued, orderId],
+      );
+
+      return orderId;
+    }
+
+    const rightsIssued = this.padOrderSize(record.vol_applied);
+    const insertResult = await queryRunner.query(
+      `INSERT INTO rights_issue
+      (
+        type,
+        cd_code,
+        order_size,
+        renounce_cd_code,
+        order_size_final,
+        symbol_id,
+        buy_vol,
+        allocated_size,
+        rights_issued,
+        face_value,
+        total_amount,
+        available_rights,
+        price_discovered,
+        user_name,
+        cid_no,
+        status,
+        order_date,
+        email_status
+      )
+      VALUES
+      (
+        'S',
+        ?,
+        ?,
+        '',
+        0,
+        ?,
+        0,
+        0,
+        ?,
+        10,
+        ?,
+        0,
+        0,
+        ?,
+        ?,
+        0,
+        NOW(),
+        0
+      )`,
+      [
+        record.cd_code,
+        record.vol_applied,
+        RIGHTS_SYMBOL_ID,
+        rightsIssued,
+        record.amount,
+        record.cid,
+        record.cid,
+      ],
+    );
+
+    return Number(insertResult?.insertId ?? 0);
+  }
+
+  private padOrderSize(size: number): string {
+    return String(Math.trunc(size)).padStart(10, '0');
+  }
+
+  private buildRightsNotificationMessage(
+    orderNo: string,
+    record: RightsTempRecord,
+  ): string {
+    return `Your rights subscription (Order: ${orderNo}) has been confirmed. CD Code: ${record.cd_code}, Volume: ${record.vol_applied}, Amount: ${record.amount}.`;
+  }
+
+  private async sendSms(phoneNo: string, message: string): Promise<boolean> {
+    try {
+      const token = 'rsebsms@2021#Dec!';
+      const url = 'https://cms.rsebl.org.bt/api/v1/rseb_sms_gateway.php';
+      const formData = new URLSearchParams();
+      formData.append('phoneNo', phoneNo);
+      formData.append('message', message);
+      formData.append('token', token);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
+
+      const result = await response.text();
+      return result === 'SENT';
+    } catch (error) {
+      console.error('Rights callback SMS error:', error);
+      return false;
+    }
+  }
+
+  private async sendRightsEmail(
+    email: string,
+    orderNo: string,
+    message: string,
+  ): Promise<boolean> {
+    try {
+      const smtpPort = Number(this.configService.get<number>('SMTP_PORT') || 587);
+      const isSecure = smtpPort === 465;
+      const transporter = nodemailer.createTransport({
+        host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
+        port: smtpPort,
+        secure: isSecure,
+        auth: {
+          user: this.configService.get<string>('SMTP_USER'),
+          pass: this.configService.get<string>('SMTP_PASS'),
+        },
+      });
+
+      await transporter.sendMail({
+        from:
+          this.configService.get<string>('SMTP_FROM') ||
+          this.configService.get<string>('SMTP_USER') ||
+          'noreply@example.com',
+        to: email,
+        subject: `Rights Subscription Confirmed - ${orderNo}`,
+        text: message,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Rights callback email error:', error);
+      return false;
+    }
+  }
+
+  private async getClientContextByCdCode(
+    cdCode: string,
+  ): Promise<ClientRightsContext> {
+    const rows = await this.dataSource.query(
+      `SELECT ID, email, phone
+       FROM client_account
+       WHERE cd_code = ?
+       LIMIT 1`,
+      [cdCode],
+    );
+
+    const row = rows?.[0];
+    if (!row) {
+      throw new BadRequestException('Client account not found');
+    }
+
+    const cid = String(row.ID ?? '').trim();
+    const email = String(row.email ?? '').trim();
+    const phone = String(row.phone ?? '').trim();
+
+    if (!cid) {
+      throw new BadRequestException('CID not found for client account');
+    }
+    if (!email) {
+      throw new BadRequestException('Email not found for client account');
+    }
+    if (!phone) {
+      throw new BadRequestException('Phone not found for client account');
+    }
+
+    return { cid, email, phone };
+  }
+}
