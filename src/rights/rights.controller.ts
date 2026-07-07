@@ -19,6 +19,8 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RightsService } from './rights.service';
 import { RightsCheckExistResponseDto } from './dto/check-exist-response.dto';
+import { CheckExistRequestDto } from './dto/check-exist-request.dto';
+import { ActiveRightsResponseDto } from './dto/active-rights-response.dto';
 import {
   HandleRightsCallbackDto,
   HandleRightsCallbackResponseDto,
@@ -35,12 +37,14 @@ import {
 export class RightsController {
   constructor(private readonly rightsService: RightsService) {}
 
-  @Get('check-exist')
+  @Post('check-exist')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Check if rights exist for authenticated user',
     description:
-      'Uses `cd_code` from the JWT access token. Available only during the rights subscription window (7 Jul 2026 5:00 PM – 28 Jul 2026 5:00 PM, Asia/Thimphu). `symbol_id`, `corp_announcement_id`, and related filters are fixed server-side.',
+      'Uses `cd_code` from the JWT access token. `symbol_id` and `corp_announcement_id` are provided in the request body.',
   })
+  @ApiBody({ type: CheckExistRequestDto })
   @ApiResponse({
     status: 200,
     description: 'Rights existence check completed',
@@ -48,8 +52,7 @@ export class RightsController {
   })
   @ApiResponse({
     status: 400,
-    description:
-      'Subscription not yet started or subscription has ended',
+    description: 'Validation failure - invalid request body',
   })
   @ApiResponse({
     status: 401,
@@ -59,7 +62,10 @@ export class RightsController {
     status: 500,
     description: 'Internal server error',
   })
-  async checkExist(@Request() req): Promise<RightsCheckExistResponseDto> {
+  async checkExist(
+    @Request() req,
+    @Body() dto: CheckExistRequestDto,
+  ): Promise<RightsCheckExistResponseDto> {
     try {
       const cdCode = req.user?.cd_code?.trim();
 
@@ -70,7 +76,11 @@ export class RightsController {
         );
       }
 
-      const data = await this.rightsService.checkRightsExist(cdCode);
+      const data = await this.rightsService.checkRightsExist(
+        cdCode,
+        dto.symbol_id,
+        dto.corp_announcement_id,
+      );
       const exists = data.length > 0;
 
       return {
@@ -92,12 +102,56 @@ export class RightsController {
     }
   }
 
+  @Get('active')
+  @ApiOperation({
+    summary: 'Get active rights offers',
+    description:
+      'Returns rows from `rights_offers` where `status = 1` and `end_at` is not in the past.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Active rights offers retrieved successfully',
+    type: ActiveRightsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getActiveRights(): Promise<ActiveRightsResponseDto> {
+    try {
+      const data = await this.rightsService.getActiveRightsOffers();
+
+      return {
+        error: false,
+        message:
+          data.length > 0
+            ? 'Active rights offers retrieved successfully'
+            : 'No active rights offers found',
+        data,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in rights/active:', error);
+      throw new HttpException(
+        'Failed to fetch active rights offers',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Post('subscribeRights')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Subscribe to rights issue',
     description:
-      'Inserts a pending rights subscription into `rights_issue_online_temp`. Uses `cd_code` from the JWT; `cid`, `email`, and `phone` are resolved from `client_account`. `symbol_id`, `payment_status`, `type`, `AS_Check`, and `client_acc_check` are fixed server-side.',
+      'Inserts a pending rights subscription into `rights_issue_online_temp`. Uses `cd_code` from the JWT; `symbol_id` from the request body; `cid`, `email`, and `phone` are resolved from `client_account`. `payment_status`, `type`, `AS_Check`, and `client_acc_check` are fixed server-side.',
   })
   @ApiBody({ type: SubscribeRightsDto })
   @ApiResponse({
@@ -133,6 +187,7 @@ export class RightsController {
 
       const insertId = await this.rightsService.subscribeRights({
         cdCode,
+        symbolId: dto.symbol_id,
         orderNo: dto.order_no,
         amount: dto.amount,
         volApplied: dto.vol_applied,

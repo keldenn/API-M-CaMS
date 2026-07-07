@@ -8,11 +8,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { RightsCheckExistItemDto } from './dto/check-exist-response.dto';
-import { assertRightsSubscriptionWindow } from './rights-subscription-window';
-
-const RIGHTS_SYMBOL_ID = 20;
-const RIGHTS_CORP_ANNOUNCEMENT_ID = 120;
-const RIGHTS_FEE_SURCHARGE = 100;
+import { ActiveRightsOfferDto } from './dto/active-rights-response.dto';
 
 type ClientRightsContext = {
   cid: string;
@@ -22,6 +18,7 @@ type ClientRightsContext = {
 
 type RightsTempRecord = {
   cd_code: string;
+  symbol_id: number;
   vol_applied: number;
   amount: number;
   email: string;
@@ -31,6 +28,7 @@ type RightsTempRecord = {
 
 export type SubscribeRightsParams = {
   cdCode: string;
+  symbolId: number;
   orderNo: string;
   amount: number;
   volApplied: number;
@@ -54,9 +52,33 @@ export class RightsService {
     private readonly configService: ConfigService,
   ) {}
 
-  async checkRightsExist(cdCode: string): Promise<RightsCheckExistItemDto[]> {
-    assertRightsSubscriptionWindow();
+  async getActiveRightsOffers(): Promise<ActiveRightsOfferDto[]> {
+    const rows = await this.dataSource.query(
+      `SELECT symbol_id, start_at, end_at, corp_announcement_id, status
+       FROM rights_offers
+       WHERE status = 1
+         AND end_at >= NOW()
+       ORDER BY start_at DESC`,
+    );
 
+    if (!rows?.length) {
+      return [];
+    }
+
+    return rows.map((row: Record<string, unknown>) => ({
+      symbol_id: Number(row.symbol_id ?? 0),
+      start_at: row.start_at != null ? String(row.start_at) : '',
+      end_at: row.end_at != null ? String(row.end_at) : '',
+      corp_announcement_id: Number(row.corp_announcement_id ?? 0),
+      status: Number(row.status ?? 0),
+    }));
+  }
+
+  async checkRightsExist(
+    cdCode: string,
+    symbolId: number,
+    corpAnnouncementId: number,
+  ): Promise<RightsCheckExistItemDto[]> {
     const query = `
       SELECT
         a.client_id,
@@ -100,10 +122,10 @@ export class RightsService {
     `;
 
     const rows = await this.dataSource.query(query, [
-      RIGHTS_SYMBOL_ID,
+      symbolId,
       cdCode.trim(),
-      RIGHTS_CORP_ANNOUNCEMENT_ID,
-      RIGHTS_SYMBOL_ID,
+      corpAnnouncementId,
+      symbolId,
     ]);
 
     if (!rows?.length) {
@@ -176,7 +198,7 @@ export class RightsService {
     const result = await this.dataSource.query(query, [
       params.orderNo.trim(),
       cdCode,
-      RIGHTS_SYMBOL_ID,
+      params.symbolId,
       params.amount,
       client.cid,
       client.email,
@@ -291,6 +313,7 @@ export class RightsService {
 
     return rows.map((row: Record<string, unknown>) => ({
       cd_code: String(row.cd_code ?? '').trim(),
+      symbol_id: Number(row.symbol_id ?? 0),
       vol_applied: Number(row.vol_applied ?? 0),
       amount: Number(row.amount ?? 0),
       email: String(row.email ?? '').trim(),
@@ -308,7 +331,7 @@ export class RightsService {
        FROM rights_issue
        WHERE cd_code = ?
          AND symbol_id = ?`,
-      [record.cd_code, RIGHTS_SYMBOL_ID],
+      [record.cd_code, record.symbol_id],
     );
 
     const existing = existingRows?.[0];
@@ -316,8 +339,7 @@ export class RightsService {
       const existingOrderSize = Number(existing.order_size ?? 0);
       const existingTotalAmount = Number(existing.total_amount ?? 0);
       const newOrderSize = existingOrderSize + record.vol_applied;
-      const newTotalAmount =
-        existingTotalAmount + record.amount + RIGHTS_FEE_SURCHARGE;
+      const newTotalAmount = existingTotalAmount + record.amount;
       const rightsIssued = this.padOrderSize(newOrderSize);
       const orderId = Number(existing.order_id);
 
@@ -380,7 +402,7 @@ export class RightsService {
       [
         record.cd_code,
         record.vol_applied,
-        RIGHTS_SYMBOL_ID,
+        record.symbol_id,
         rightsIssued,
         record.amount,
         record.cid,

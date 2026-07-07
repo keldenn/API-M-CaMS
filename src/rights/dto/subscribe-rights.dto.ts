@@ -8,6 +8,12 @@ import {
 } from 'class-validator';
 
 export class SubscribeRightsDto {
+  @ApiProperty({ description: 'Symbol id for the rights offer', example: 20 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  symbol_id: number;
+
   @ApiProperty({
     description: 'BFS order id (stored as bfs_orderid)',
     example: '202607061430001',
