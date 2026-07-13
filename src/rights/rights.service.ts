@@ -26,6 +26,11 @@ type RightsTempRecord = {
   cid: string;
 };
 
+type RightsIssueUpsertOptions = {
+  issueType: 'S' | 'R';
+  renounceCdCode?: string;
+};
+
 export type SubscribeRightsParams = {
   cdCode: string;
   symbolId: number;
@@ -216,6 +221,31 @@ export class RightsService {
     orderNo: string,
     tokenCdCode: string,
   ): Promise<HandleRightsCallbackResult> {
+    return this.processRightsPaymentCallback(orderNo, tokenCdCode, {
+      issueType: 'S',
+      notificationKind: 'subscription',
+    });
+  }
+
+  async subscribeRenounce(
+    orderNo: string,
+    tokenCdCode: string,
+    renounceCdCode: string,
+  ): Promise<HandleRightsCallbackResult> {
+    return this.processRightsPaymentCallback(orderNo, tokenCdCode, {
+      issueType: 'R',
+      renounceCdCode: renounceCdCode.trim(),
+      notificationKind: 'renounce',
+    });
+  }
+
+  private async processRightsPaymentCallback(
+    orderNo: string,
+    tokenCdCode: string,
+    options: RightsIssueUpsertOptions & {
+      notificationKind: 'subscription' | 'renounce';
+    },
+  ): Promise<HandleRightsCallbackResult> {
     const normalizedOrderNo = orderNo.trim();
     const normalizedCdCode = tokenCdCode.trim();
 
@@ -249,7 +279,10 @@ export class RightsService {
       );
 
       for (const record of tempRecords) {
-        orderId = await this.upsertRightsIssueRecord(queryRunner, record);
+        orderId = await this.upsertRightsIssueRecord(queryRunner, record, {
+          issueType: options.issueType,
+          renounceCdCode: options.renounceCdCode,
+        });
       }
 
       await queryRunner.commitTransaction();
@@ -264,6 +297,8 @@ export class RightsService {
     const notificationMessage = this.buildRightsNotificationMessage(
       normalizedOrderNo,
       primaryRecord,
+      options.notificationKind,
+      options.renounceCdCode,
     );
     const smsSent = primaryRecord.phone
       ? await this.sendSms(primaryRecord.phone, notificationMessage)
@@ -273,6 +308,7 @@ export class RightsService {
           primaryRecord.email,
           normalizedOrderNo,
           notificationMessage,
+          options.notificationKind,
         )
       : false;
 
@@ -325,13 +361,15 @@ export class RightsService {
   private async upsertRightsIssueRecord(
     queryRunner: ReturnType<DataSource['createQueryRunner']>,
     record: RightsTempRecord,
+    options: RightsIssueUpsertOptions,
   ): Promise<number> {
     const existingRows = await queryRunner.query(
       `SELECT *
        FROM rights_issue
        WHERE cd_code = ?
-         AND symbol_id = ?`,
-      [record.cd_code, record.symbol_id],
+         AND symbol_id = ?
+         AND type = ?`,
+      [record.cd_code, record.symbol_id, options.issueType],
     );
 
     const existing = existingRows?.[0];
@@ -348,8 +386,17 @@ export class RightsService {
          SET order_size = ?,
              total_amount = ?,
              rights_issued = ?
+             ${options.issueType === 'R' ? ', renounce_cd_code = ?' : ''}
          WHERE order_id = ?`,
-        [newOrderSize, newTotalAmount, rightsIssued, orderId],
+        options.issueType === 'R'
+          ? [
+              newOrderSize,
+              newTotalAmount,
+              rightsIssued,
+              options.renounceCdCode ?? '',
+              orderId,
+            ]
+          : [newOrderSize, newTotalAmount, rightsIssued, orderId],
       );
 
       return orderId;
@@ -380,10 +427,10 @@ export class RightsService {
       )
       VALUES
       (
-        'S',
         ?,
         ?,
-        '',
+        ?,
+        ?,
         0,
         ?,
         0,
@@ -400,8 +447,10 @@ export class RightsService {
         0
       )`,
       [
+        options.issueType,
         record.cd_code,
         record.vol_applied,
+        options.issueType === 'R' ? (options.renounceCdCode ?? '') : '',
         record.symbol_id,
         rightsIssued,
         record.amount,
@@ -420,7 +469,13 @@ export class RightsService {
   private buildRightsNotificationMessage(
     orderNo: string,
     record: RightsTempRecord,
+    kind: 'subscription' | 'renounce' = 'subscription',
+    renounceCdCode?: string,
   ): string {
+    if (kind === 'renounce') {
+      return `Your rights renounce (Order: ${orderNo}) has been confirmed. CD Code: ${record.cd_code}, Renounce CD Code: ${renounceCdCode ?? ''}, Volume: ${record.vol_applied}, Amount: ${record.amount}.`;
+    }
+
     return `Your rights subscription (Order: ${orderNo}) has been confirmed. CD Code: ${record.cd_code}, Volume: ${record.vol_applied}, Amount: ${record.amount}.`;
   }
 
@@ -453,6 +508,7 @@ export class RightsService {
     email: string,
     orderNo: string,
     message: string,
+    kind: 'subscription' | 'renounce' = 'subscription',
   ): Promise<boolean> {
     try {
       const smtpPort = Number(this.configService.get<number>('SMTP_PORT') || 587);
@@ -467,13 +523,18 @@ export class RightsService {
         },
       });
 
+      const subject =
+        kind === 'renounce'
+          ? `Rights Renounce Confirmed - ${orderNo}`
+          : `Rights Subscription Confirmed - ${orderNo}`;
+
       await transporter.sendMail({
         from:
           this.configService.get<string>('SMTP_FROM') ||
           this.configService.get<string>('SMTP_USER') ||
           'noreply@example.com',
         to: email,
-        subject: `Rights Subscription Confirmed - ${orderNo}`,
+        subject,
         text: message,
       });
 

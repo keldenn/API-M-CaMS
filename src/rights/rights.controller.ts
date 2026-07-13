@@ -29,6 +29,10 @@ import {
   SubscribeRightsDto,
   SubscribeRightsResponseDto,
 } from './dto/subscribe-rights.dto';
+import {
+  SubscribeRenounceDto,
+  SubscribeRenounceResponseDto,
+} from './dto/subscribe-renounce.dto';
 
 @ApiTags('Rights')
 @Controller('rights')
@@ -278,6 +282,77 @@ export class RightsController {
       console.error('Error in rights/handleRightsCallback:', error);
       throw new HttpException(
         'Failed to process rights callback',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('subscribeRenounce')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Process rights renounce payment callback',
+    description:
+      'Same flow as `handleRightsCallback`: updates `rights_issue_online_temp`, upserts `rights_issue` with `type = R` and `renounce_cd_code` from the body, then sends SMS/email. Requires JWT; `cd_code` in the temp record must match the token.',
+  })
+  @ApiBody({ type: SubscribeRenounceDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Rights renounce processed',
+    type: SubscribeRenounceResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No pending subscription found for order',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'CD code does not match authenticated user',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async subscribeRenounce(
+    @Request() req,
+    @Body() dto: SubscribeRenounceDto,
+  ): Promise<SubscribeRenounceResponseDto> {
+    try {
+      const cdCode = req.user?.cd_code?.trim();
+
+      if (!cdCode) {
+        throw new HttpException(
+          'CD code not found in token',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const result = await this.rightsService.subscribeRenounce(
+        dto.order_no,
+        cdCode,
+        dto.renounce_cd_code,
+      );
+
+      return {
+        error: false,
+        message: 'Rights renounce processed successfully',
+        order_no: result.orderNo,
+        order_id: result.orderId > 0 ? result.orderId : undefined,
+        email_status: result.emailStatus,
+        sms_sent: result.smsSent,
+        email_sent: result.emailSent,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in rights/subscribeRenounce:', error);
+      throw new HttpException(
+        'Failed to process rights renounce',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
