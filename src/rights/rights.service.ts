@@ -363,16 +363,15 @@ export class RightsService {
     record: RightsTempRecord,
     options: RightsIssueUpsertOptions,
   ): Promise<number> {
-    const existingRows = await queryRunner.query(
-      `SELECT *
-       FROM rights_issue
-       WHERE cd_code = ?
-         AND symbol_id = ?
-         AND type = ?`,
-      [record.cd_code, record.symbol_id, options.issueType],
-    );
+    const existing =
+      options.issueType === 'R'
+        ? await this.findExistingRenounceRecord(
+            queryRunner,
+            record,
+            options.renounceCdCode ?? '',
+          )
+        : await this.findExistingSubscribeRecord(queryRunner, record);
 
-    const existing = existingRows?.[0];
     if (existing) {
       const existingOrderSize = Number(existing.order_size ?? 0);
       const existingTotalAmount = Number(existing.total_amount ?? 0);
@@ -386,17 +385,8 @@ export class RightsService {
          SET order_size = ?,
              total_amount = ?,
              rights_issued = ?
-             ${options.issueType === 'R' ? ', renounce_cd_code = ?' : ''}
          WHERE order_id = ?`,
-        options.issueType === 'R'
-          ? [
-              newOrderSize,
-              newTotalAmount,
-              rightsIssued,
-              options.renounceCdCode ?? '',
-              orderId,
-            ]
-          : [newOrderSize, newTotalAmount, rightsIssued, orderId],
+        [newOrderSize, newTotalAmount, rightsIssued, orderId],
       );
 
       return orderId;
@@ -460,6 +450,42 @@ export class RightsService {
     );
 
     return Number(insertResult?.insertId ?? 0);
+  }
+
+  private async findExistingSubscribeRecord(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    record: RightsTempRecord,
+  ): Promise<Record<string, unknown> | undefined> {
+    const rows = await queryRunner.query(
+      `SELECT *
+       FROM rights_issue
+       WHERE cd_code = ?
+         AND symbol_id = ?
+         AND type = 'S'
+       LIMIT 1`,
+      [record.cd_code, record.symbol_id],
+    );
+
+    return rows?.[0];
+  }
+
+  private async findExistingRenounceRecord(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    record: RightsTempRecord,
+    renounceCdCode: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const rows = await queryRunner.query(
+      `SELECT *
+       FROM rights_issue
+       WHERE cd_code = ?
+         AND symbol_id = ?
+         AND type = 'R'
+         AND TRIM(renounce_cd_code) = ?
+       LIMIT 1`,
+      [record.cd_code, record.symbol_id, renounceCdCode.trim()],
+    );
+
+    return rows?.[0];
   }
 
   private padOrderSize(size: number): string {
