@@ -59,7 +59,7 @@ export class RightsService {
 
   async getActiveRightsOffers(): Promise<ActiveRightsOfferDto[]> {
     const rows = await this.dataSource.query(
-      `SELECT symbol_id, start_at, end_at, corp_announcement_id, status
+      `SELECT symbol_id, start_at, end_at, corp_announcement_id, issue_price, status
        FROM rights_offers
        WHERE status = 1
          AND end_at >= NOW()
@@ -75,6 +75,8 @@ export class RightsService {
       start_at: row.start_at != null ? String(row.start_at) : '',
       end_at: row.end_at != null ? String(row.end_at) : '',
       corp_announcement_id: Number(row.corp_announcement_id ?? 0),
+      issue_price:
+        row.issue_price != null ? Number(row.issue_price) : null,
       status: Number(row.status ?? 0),
     }));
   }

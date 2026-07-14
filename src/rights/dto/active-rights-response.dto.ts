@@ -13,6 +13,9 @@ export class ActiveRightsOfferDto {
   @ApiProperty({ example: 120 })
   corp_announcement_id: number;
 
+  @ApiProperty({ example: 10.5, nullable: true })
+  issue_price: number | null;
+
   @ApiProperty({ example: 1 })
   status: number;
 }
