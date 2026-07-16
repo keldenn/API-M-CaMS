@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -9,6 +10,8 @@ import { DataSource } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import { RightsCheckExistItemDto } from './dto/check-exist-response.dto';
 import { ActiveRightsOfferDto } from './dto/active-rights-response.dto';
+import { FcmService } from '../fcm/fcm.service';
+import { NotifyEligibleRightsResponseDto } from './dto/notify-eligible-response.dto';
 
 type ClientRightsContext = {
   cid: string;
@@ -31,6 +34,11 @@ type RightsIssueUpsertOptions = {
   renounceCdCode?: string;
 };
 
+type EligibleRightsClient = {
+  cd_code: string;
+  available_rights: number;
+};
+
 export type SubscribeRightsParams = {
   cdCode: string;
   symbolId: number;
@@ -51,10 +59,13 @@ export type HandleRightsCallbackResult = {
 
 @Injectable()
 export class RightsService {
+  private readonly logger = new Logger(RightsService.name);
+
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
+    private readonly fcmService: FcmService,
   ) {}
 
   async getActiveRightsOffers(): Promise<ActiveRightsOfferDto[]> {
@@ -155,6 +166,128 @@ export class RightsService {
       order_total: Number(row.order_total ?? 0),
       available_rights: Number(row.available_rights ?? 0),
     }));
+  }
+
+  /**
+   * Find all clients eligible for a rights offer (available_rights > 0).
+   */
+  async findEligibleRightsClients(
+    symbolId: number,
+    corpAnnouncementId: number,
+  ): Promise<EligibleRightsClient[]> {
+    const query = `
+      SELECT
+        a.cd_code,
+        (s.ribon_volume - COALESCE(SUM(r.order_size), 0)) AS available_rights
+      FROM client_account AS a
+      INNER JOIN spot_date_holding AS s
+        ON a.client_id = s.client_id
+      LEFT JOIN rights_issue AS r
+        ON a.cd_code = r.cd_code
+        AND r.symbol_id = ?
+        AND r.type IN ('S', 'R')
+      WHERE
+        s.corp_announcement_id = ?
+        AND s.symbol_id = ?
+        AND s.status = 1
+        AND s.ribon_volume > 0
+        AND a.cd_code IS NOT NULL
+        AND TRIM(a.cd_code) != ''
+      GROUP BY
+        a.cd_code,
+        s.ribon_volume
+      HAVING available_rights > 0
+    `;
+
+    const rows = await this.dataSource.query(query, [
+      symbolId,
+      corpAnnouncementId,
+      symbolId,
+    ]);
+
+    if (!rows?.length) {
+      return [];
+    }
+
+    return rows.map((row: Record<string, unknown>) => ({
+      cd_code: String(row.cd_code ?? '').trim(),
+      available_rights: Number(row.available_rights ?? 0),
+    }));
+  }
+
+  async notifyEligibleRightsClients(
+    symbolId: number,
+    corpAnnouncementId: number,
+  ): Promise<Omit<NotifyEligibleRightsResponseDto, 'error' | 'message'>> {
+    const eligible = await this.findEligibleRightsClients(
+      symbolId,
+      corpAnnouncementId,
+    );
+    const symbol = await this.getSymbolCode(symbolId);
+
+    let notifiedCount = 0;
+    let skippedNoToken = 0;
+    let failedCount = 0;
+
+    this.logger.log(
+      `Rights notify: ${eligible.length} eligible client(s) for symbol_id=${symbolId}, corp_announcement_id=${corpAnnouncementId}`,
+    );
+
+    for (const client of eligible) {
+      try {
+        const result = await this.fcmService.sendRightsOfferNotification(
+          client.cd_code,
+          {
+            symbol,
+            symbolId,
+            corpAnnouncementId,
+            availableRights: client.available_rights,
+          },
+        );
+
+        if (result.successCount > 0) {
+          notifiedCount++;
+        } else if (
+          result.successCount === 0 &&
+          result.failureCount === 0
+        ) {
+          // No tokens registered for this cd_code
+          skippedNoToken++;
+        } else {
+          failedCount++;
+        }
+      } catch (err: unknown) {
+        failedCount++;
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `Rights FCM failed for cd_code=${client.cd_code}: ${msg}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Rights notify finished: eligible=${eligible.length}, notified=${notifiedCount}, skipped_no_token=${skippedNoToken}, failed=${failedCount}`,
+    );
+
+    return {
+      eligible_count: eligible.length,
+      notified_count: notifiedCount,
+      skipped_no_token: skippedNoToken,
+      failed_count: failedCount,
+    };
+  }
+
+  private async getSymbolCode(symbolId: number): Promise<string> {
+    try {
+      const rows = await this.dataSource.query(
+        `SELECT symbol FROM symbol WHERE symbol_id = ? LIMIT 1`,
+        [symbolId],
+      );
+      const code = String(rows?.[0]?.symbol ?? '').trim();
+      return code || `Symbol #${symbolId}`;
+    } catch {
+      return `Symbol #${symbolId}`;
+    }
   }
 
   async subscribeRights(params: SubscribeRightsParams): Promise<number> {

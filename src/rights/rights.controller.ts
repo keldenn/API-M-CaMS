@@ -21,6 +21,7 @@ import { RightsService } from './rights.service';
 import { RightsCheckExistResponseDto } from './dto/check-exist-response.dto';
 import { CheckExistRequestDto } from './dto/check-exist-request.dto';
 import { ActiveRightsResponseDto } from './dto/active-rights-response.dto';
+import { NotifyEligibleRightsResponseDto } from './dto/notify-eligible-response.dto';
 import {
   HandleRightsCallbackDto,
   HandleRightsCallbackResponseDto,
@@ -145,6 +146,61 @@ export class RightsController {
       console.error('Error in rights/active:', error);
       throw new HttpException(
         'Failed to fetch active rights offers',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('notify-eligible')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Notify all eligible clients for a rights offer',
+    description:
+      'Finds all clients eligible for the given `symbol_id` and `corp_announcement_id` (same eligibility rules as check-exist, without cd_code), then sends an FCM push to each client that has a registered token. Clients without tokens are skipped. Does not return the client list.',
+  })
+  @ApiBody({ type: CheckExistRequestDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Rights offer notifications processed',
+    type: NotifyEligibleRightsResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failure - invalid request body',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async notifyEligible(
+    @Body() dto: CheckExistRequestDto,
+  ): Promise<NotifyEligibleRightsResponseDto> {
+    try {
+      const result = await this.rightsService.notifyEligibleRightsClients(
+        dto.symbol_id,
+        dto.corp_announcement_id,
+      );
+
+      return {
+        error: false,
+        message:
+          result.eligible_count > 0
+            ? 'Rights offer notifications processed successfully'
+            : 'No eligible clients found for this rights offer',
+        ...result,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in rights/notify-eligible:', error);
+      throw new HttpException(
+        'Failed to notify eligible rights clients',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

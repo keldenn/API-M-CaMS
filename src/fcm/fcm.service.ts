@@ -405,6 +405,49 @@ export class FcmService implements OnModuleInit {
   }
 
   /**
+   * Notify a client that a rights offer is available for them.
+   */
+  async sendRightsOfferNotification(
+    cdCode: string,
+    args: {
+      symbol: string;
+      symbolId: number;
+      corpAnnouncementId: number;
+      availableRights: number;
+    },
+  ): Promise<{
+    success: boolean;
+    successCount: number;
+    failureCount: number;
+  }> {
+    const {
+      symbol,
+      symbolId,
+      corpAnnouncementId,
+      availableRights,
+    } = args;
+    const title = `${symbol} Rights Offer`;
+    const body = `${symbol} rights offer is available for you. Available rights: ${availableRights.toLocaleString()}. Subscribe now.`;
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      androidChannelId: 'rights_offers',
+      data: {
+        type: 'rights_offer',
+        symbol,
+        symbol_id: String(symbolId),
+        corp_announcement_id: String(corpAnnouncementId),
+        available_rights: String(availableRights),
+        cd_code: cdCode,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    return this.sendToCdCode(cdCode, payload);
+  }
+
+  /**
    * Subscription reminder: expiry = user created_at + 1 year (same rule as login `expired_at`).
    */
   async sendAccountExpiryNotification(
