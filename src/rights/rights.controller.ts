@@ -81,7 +81,7 @@ export class RightsController {
         );
       }
 
-      const data = await this.rightsService.checkRightsExist(
+      const { data, rate } = await this.rightsService.checkRightsExist(
         cdCode,
         dto.symbol_id,
         dto.corp_announcement_id,
@@ -92,6 +92,7 @@ export class RightsController {
         error: false,
         message: exists ? 'Rights record found' : 'No rights record found',
         exists,
+        rate,
         data,
       };
     } catch (error) {

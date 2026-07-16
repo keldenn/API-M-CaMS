@@ -51,6 +51,14 @@ export class RightsCheckExistResponseDto {
   @ApiProperty({ example: true })
   exists: boolean;
 
+  @ApiProperty({
+    example: 20,
+    type: Number,
+    nullable: true,
+    description: 'Rate from corporate_announcement for the given corp_announcement_id',
+  })
+  rate: number | null;
+
   @ApiProperty({ type: [RightsCheckExistItemDto] })
   data: RightsCheckExistItemDto[];
 }

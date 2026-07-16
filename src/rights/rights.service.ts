@@ -96,7 +96,17 @@ export class RightsService {
     cdCode: string,
     symbolId: number,
     corpAnnouncementId: number,
-  ): Promise<RightsCheckExistItemDto[]> {
+  ): Promise<{ data: RightsCheckExistItemDto[]; rate: number | null }> {
+    const rateRows = await this.dataSource.query(
+      `SELECT rate
+       FROM corporate_announcement
+       WHERE corp_announcement_id = ?
+       LIMIT 1`,
+      [corpAnnouncementId],
+    );
+    const rate =
+      rateRows?.[0]?.rate != null ? Number(rateRows[0].rate) : null;
+
     const query = `
       SELECT
         a.client_id,
@@ -147,25 +157,28 @@ export class RightsService {
     ]);
 
     if (!rows?.length) {
-      return [];
+      return { data: [], rate };
     }
 
-    return rows.map((row: Record<string, unknown>) => ({
-      client_id: Number(row.client_id),
-      cd_code: String(row.cd_code ?? '').trim(),
-      f_name: String(row.f_name ?? '').trim(),
-      l_name: String(row.l_name ?? '').trim(),
-      phone: String(row.phone ?? '').trim(),
-      email: String(row.email ?? '').trim(),
-      bank_id: Number(row.bank_id ?? 0),
-      bank_account: String(row.bank_account ?? '').trim(),
-      volume: Number(row.volume ?? 0),
-      ribon_volume: Number(row.ribon_volume ?? 0),
-      record_date:
-        row.record_date != null ? String(row.record_date).slice(0, 10) : '',
-      order_total: Number(row.order_total ?? 0),
-      available_rights: Number(row.available_rights ?? 0),
-    }));
+    return {
+      rate,
+      data: rows.map((row: Record<string, unknown>) => ({
+        client_id: Number(row.client_id),
+        cd_code: String(row.cd_code ?? '').trim(),
+        f_name: String(row.f_name ?? '').trim(),
+        l_name: String(row.l_name ?? '').trim(),
+        phone: String(row.phone ?? '').trim(),
+        email: String(row.email ?? '').trim(),
+        bank_id: Number(row.bank_id ?? 0),
+        bank_account: String(row.bank_account ?? '').trim(),
+        volume: Number(row.volume ?? 0),
+        ribon_volume: Number(row.ribon_volume ?? 0),
+        record_date:
+          row.record_date != null ? String(row.record_date).slice(0, 10) : '',
+        order_total: Number(row.order_total ?? 0),
+        available_rights: Number(row.available_rights ?? 0),
+      })),
+    };
   }
 
   /**
