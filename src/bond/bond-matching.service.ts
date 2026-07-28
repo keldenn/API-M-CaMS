@@ -271,7 +271,11 @@ export class BondMatchingService {
       const fillVolume = Math.min(remaining, restingRemaining);
       await this.processFill(queryRunner, incoming, resting, fillVolume);
 
-      fills.push({ volume: fillVolume, price: resting.price });
+      fills.push({
+        volume: fillVolume,
+        price: resting.price,
+        counterparty_cd_code: resting.cdCode,
+      });
       remaining -= fillVolume;
       this.applyFillToLocalOrder(incoming, fillVolume, resting.price);
     }

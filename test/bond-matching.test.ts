@@ -297,8 +297,16 @@ void test('supports multiple price-time fills and leaves a partial remainder', a
 
   assert.equal(result.status, 'MATCHED');
   assert.deepEqual(result.fills, [
-    { volume: 40, price: 1000 },
-    { volume: 30, price: 1010 },
+    {
+      volume: 40,
+      price: 1000,
+      counterparty_cd_code: first.cd_code,
+    },
+    {
+      volume: 30,
+      price: 1010,
+      counterparty_cd_code: second.cd_code,
+    },
   ]);
   assert.equal(result.remaining, 30);
   assert.match(

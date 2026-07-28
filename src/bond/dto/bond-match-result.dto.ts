@@ -8,6 +8,9 @@ export class BondMatchFillDto {
 
   @ApiProperty({ example: 1010 })
   price!: number;
+
+  @ApiProperty({ example: 'U202500016' })
+  counterparty_cd_code!: string;
 }
 
 export class BondMatchResultDto {

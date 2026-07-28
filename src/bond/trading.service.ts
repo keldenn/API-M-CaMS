@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +10,7 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { Repository } from 'typeorm';
 import { CdsHolding } from '../entities/cds-holding.entity';
 import { SecurityTypeMaster } from '../entities/security-type-master.entity';
+import { FcmService } from '../fcm/fcm.service';
 import { SecurityTypeResponseDto } from './dto/security-type-response.dto';
 import { Symbol } from '../entities/symbol.entity';
 import { BondVolResponseDto } from './dto/bond-vol.dto';
@@ -35,6 +37,7 @@ import {
   BondCancelOrderResponseDto,
 } from './dto/bond-cancel-order.dto';
 import { BondMatchingService } from './bond-matching.service';
+import { BondMatchResultDto } from './dto/bond-match-result.dto';
 import {
   calculateBondCommission,
   calculateBondPlacementAmounts,
@@ -42,6 +45,8 @@ import {
 
 @Injectable()
 export class BondTradingService {
+  private readonly logger = new Logger(BondTradingService.name);
+
   constructor(
     @InjectDataSource('cms22')
     private readonly cms22DataSource: DataSource,
@@ -52,6 +57,7 @@ export class BondTradingService {
     @InjectRepository(CdsHolding)
     private readonly cdsHoldingRepository: Repository<CdsHolding>,
     private readonly bondMatchingService: BondMatchingService,
+    private readonly fcmService: FcmService,
   ) {}
 
   async getSecurityTypes(): Promise<SecurityTypeResponseDto[]> {
@@ -523,6 +529,12 @@ export class BondTradingService {
     const match = orderId
       ? await this.bondMatchingService.tryMatchOrder(orderId)
       : undefined;
+    this.notifyBondMatchParticipants(
+      dto.cd_code,
+      dto.symbol_id,
+      dto.side,
+      match,
+    );
 
     return {
       message: 'Buy Order Placed successfully.',
@@ -722,6 +734,12 @@ export class BondTradingService {
     const match = orderId
       ? await this.bondMatchingService.tryMatchOrder(orderId)
       : undefined;
+    this.notifyBondMatchParticipants(
+      dto.cd_code,
+      dto.symbol_id,
+      dto.side,
+      match,
+    );
 
     return {
       message: 'Sell Order Placed Successfully.',
@@ -1089,6 +1107,7 @@ export class BondTradingService {
     }
 
     const match = await this.bondMatchingService.tryMatchOrder(dto.order_id);
+    this.notifyBondMatchParticipants(cdCode, dto.symbol_id, dto.side, match);
 
     return {
       message: 'Order updated successfully.',
@@ -1574,6 +1593,49 @@ export class BondTradingService {
       dto.order_type.trim(),
       status,
     ]);
+  }
+
+  private notifyBondMatchParticipants(
+    incomingCdCode: string,
+    symbolId: number,
+    incomingSide: 'B' | 'S',
+    match: BondMatchResultDto | undefined,
+  ): void {
+    if (!match?.traded || match.status !== 'MATCHED') {
+      return;
+    }
+
+    const counterpartySide: 'B' | 'S' = incomingSide === 'B' ? 'S' : 'B';
+    const notifications = match.fills.flatMap((fill) => [
+      this.fcmService.sendBondTradeMatchedNotification(incomingCdCode, {
+        symbolId,
+        side: incomingSide,
+        volume: fill.volume,
+        price: fill.price,
+        counterpartyCdCode: fill.counterparty_cd_code,
+      }),
+      this.fcmService.sendBondTradeMatchedNotification(
+        fill.counterparty_cd_code,
+        {
+          symbolId,
+          side: counterpartySide,
+          volume: fill.volume,
+          price: fill.price,
+          counterpartyCdCode: incomingCdCode,
+        },
+      ),
+    ]);
+
+    void Promise.allSettled(notifications).then((results) => {
+      const failures = results.filter(
+        (result) => result.status === 'rejected',
+      ).length;
+      if (failures > 0) {
+        this.logger.warn(
+          `${failures} bond trade notification(s) failed for symbol ${symbolId}`,
+        );
+      }
+    });
   }
 
   private hasAtMostTwoDecimals(value: number): boolean {

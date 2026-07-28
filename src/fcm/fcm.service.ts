@@ -31,11 +31,15 @@ export class FcmService implements OnModuleInit {
   private initializeFirebase() {
     try {
       const projectId = this.configService.get<string>('FIREBASE_PROJECT_ID');
-      const clientEmail = this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
+      const clientEmail = this.configService.get<string>(
+        'FIREBASE_CLIENT_EMAIL',
+      );
       const privateKey = this.configService.get<string>('FIREBASE_PRIVATE_KEY');
 
       if (!projectId || !clientEmail || !privateKey) {
-        this.logger.error('Firebase configuration is missing in environment variables');
+        this.logger.error(
+          'Firebase configuration is missing in environment variables',
+        );
         throw new Error('Firebase configuration is incomplete');
       }
 
@@ -106,7 +110,9 @@ export class FcmService implements OnModuleInit {
 
       const response = await admin.messaging().send(message);
 
-      this.logger.log(`✅ Notification sent successfully. Message ID: ${response}`);
+      this.logger.log(
+        `✅ Notification sent successfully. Message ID: ${response}`,
+      );
 
       // Update last_used_at
       await this.fcmTokenService.updateLastUsed([token]);
@@ -194,10 +200,7 @@ export class FcmService implements OnModuleInit {
 
       const staleTokens = tokens.filter((token, index) => {
         const result = response.responses[index];
-        return (
-          !result.success &&
-          this.isStaleFcmTokenError(result.error?.code)
-        );
+        return !result.success && this.isStaleFcmTokenError(result.error?.code);
       });
       if (staleTokens.length > 0) {
         await this.removeStaleFcmTokens(staleTokens);
@@ -252,7 +255,8 @@ export class FcmService implements OnModuleInit {
   }> {
     this.logger.log(`📤 Sending notification to cd_code: ${cdCode}`);
 
-    const tokens = await this.fcmTokenService.getActiveTokenStringsByCdCode(cdCode);
+    const tokens =
+      await this.fcmTokenService.getActiveTokenStringsByCdCode(cdCode);
 
     if (tokens.length === 0) {
       this.logger.warn(`No FCM tokens found for cd_code: ${cdCode}`);
@@ -363,6 +367,36 @@ export class FcmService implements OnModuleInit {
     await this.sendToCdCode(cdCode, payload);
   }
 
+  async sendBondTradeMatchedNotification(
+    cdCode: string,
+    trade: {
+      symbolId: number;
+      side: 'B' | 'S';
+      volume: number;
+      price: number;
+      counterpartyCdCode: string;
+    },
+  ): Promise<void> {
+    const sideText = trade.side === 'B' ? 'BUY' : 'SELL';
+    const payload: NotificationPayload = {
+      title: 'Bond Order Matched',
+      body: `Your ${sideText} bond order for symbol ${trade.symbolId} matched ${trade.volume.toLocaleString()} unit(s) at Nu.${trade.price}.`,
+      data: {
+        type: 'bond_trade_matched',
+        symbol_id: trade.symbolId.toString(),
+        side: trade.side,
+        volume: trade.volume.toString(),
+        price: trade.price.toString(),
+        cd_code: cdCode,
+        counterparty_cd_code: trade.counterpartyCdCode,
+        timestamp: new Date().toISOString(),
+      },
+      androidChannelId: 'order_updates',
+    };
+
+    await this.sendToCdCode(cdCode, payload);
+  }
+
   /**
    * Push when a watchlisted symbol's price changes (server-side price monitor).
    */
@@ -420,12 +454,7 @@ export class FcmService implements OnModuleInit {
     successCount: number;
     failureCount: number;
   }> {
-    const {
-      symbol,
-      symbolId,
-      corpAnnouncementId,
-      availableRights,
-    } = args;
+    const { symbol, symbolId, corpAnnouncementId, availableRights } = args;
     const title = `${symbol} Rights Offer`;
     const body = `${symbol} rights offer is available for you. Available rights: ${availableRights.toLocaleString()}. Subscribe now.`;
 
@@ -459,9 +488,7 @@ export class FcmService implements OnModuleInit {
     },
   ): Promise<void> {
     const { isExpired, daysUntilExpiration, expirationDateFormatted } = args;
-    const title = isExpired
-      ? 'Account expired'
-      : 'Account expiring soon';
+    const title = isExpired ? 'Account expired' : 'Account expiring soon';
     const body = isExpired
       ? `Your subscription expired on ${expirationDateFormatted}. Please renew to continue using the service.`
       : `Your subscription expires on ${expirationDateFormatted} (${daysUntilExpiration} day(s) remaining). Please renew before expiry.`;
@@ -483,7 +510,3 @@ export class FcmService implements OnModuleInit {
     await this.sendToCdCode(cdCode, payload);
   }
 }
-
-
-
-
