@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -10,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { BondMatchResultDto } from './bond-match-result.dto';
 
 /** Body fields align with pending order row + updated pricing/volume. */
 export class BondUpdateOrderRequestDto {
@@ -79,4 +80,7 @@ export class BondUpdateOrderResponseDto {
 
   @ApiProperty({ example: 102111.58 })
   total_amount!: number;
+
+  @ApiPropertyOptional({ type: BondMatchResultDto })
+  match?: BondMatchResultDto;
 }

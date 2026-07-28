@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -9,6 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { BondMatchResultDto } from './bond-match-result.dto';
 
 /** Client request body — cd_code, participant_code, order_entry, order_type come from JWT/server. */
 export class BondBuyRequestDto {
@@ -78,4 +79,7 @@ export class BondBuyResponseDto {
 
   @ApiProperty({ example: 102111.58 })
   total_amount!: number;
+
+  @ApiPropertyOptional({ type: BondMatchResultDto })
+  match?: BondMatchResultDto;
 }

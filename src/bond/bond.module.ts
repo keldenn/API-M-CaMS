@@ -4,12 +4,13 @@ import { CdsHolding } from '../entities/cds-holding.entity';
 import { SecurityTypeMaster } from '../entities/security-type-master.entity';
 import { Symbol } from '../entities/symbol.entity';
 import { BondTradingController } from './trading.controller';
+import { BondMatchingService } from './bond-matching.service';
 import { BondTradingService } from './trading.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([SecurityTypeMaster, Symbol, CdsHolding])],
   controllers: [BondTradingController],
-  providers: [BondTradingService],
-  exports: [BondTradingService],
+  providers: [BondTradingService, BondMatchingService],
+  exports: [BondTradingService, BondMatchingService],
 })
 export class BondModule {}

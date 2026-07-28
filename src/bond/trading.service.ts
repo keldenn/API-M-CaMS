@@ -1,6 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { randomBytes } from 'crypto';
+import { DataSource, QueryRunner } from 'typeorm';
 import { Repository } from 'typeorm';
 import { CdsHolding } from '../entities/cds-holding.entity';
 import { SecurityTypeMaster } from '../entities/security-type-master.entity';
@@ -20,9 +25,7 @@ import {
   BondExecutedHistoryItemDto,
   BondExecutedHistoryResponseDto,
 } from './dto/bond-history.dto';
-import {
-  BondOrderbookResponseDto,
-} from './dto/bond-orderbook.dto';
+import { BondOrderbookResponseDto } from './dto/bond-orderbook.dto';
 import {
   BondUpdateOrderRequestDto,
   BondUpdateOrderResponseDto,
@@ -31,6 +34,11 @@ import {
   BondCancelOrderRequestDto,
   BondCancelOrderResponseDto,
 } from './dto/bond-cancel-order.dto';
+import { BondMatchingService } from './bond-matching.service';
+import {
+  calculateBondCommission,
+  calculateBondPlacementAmounts,
+} from './bond-pricing.util';
 
 @Injectable()
 export class BondTradingService {
@@ -43,6 +51,7 @@ export class BondTradingService {
     private readonly symbolRepository: Repository<Symbol>,
     @InjectRepository(CdsHolding)
     private readonly cdsHoldingRepository: Repository<CdsHolding>,
+    private readonly bondMatchingService: BondMatchingService,
   ) {}
 
   async getSecurityTypes(): Promise<SecurityTypeResponseDto[]> {
@@ -77,7 +86,9 @@ export class BondTradingService {
     }));
   }
 
-  async getBondDetails(symbolId: number): Promise<BondDetailsResponseDto | null> {
+  async getBondDetails(
+    symbolId: number,
+  ): Promise<BondDetailsResponseDto | null> {
     const query = `
       SELECT s.maturity_date, s.face_value, s.coupon_rates
       FROM symbol s
@@ -108,7 +119,10 @@ export class BondTradingService {
       WHERE c.symbol_id = ? AND c.cd_code = ?
     `;
 
-    const rows = await this.cdsHoldingRepository.query(query, [symbolId, cdCode]);
+    const rows = await this.cdsHoldingRepository.query(query, [
+      symbolId,
+      cdCode,
+    ]);
     const rawVolume = rows.length ? rows[0].volume : 0;
 
     return {
@@ -132,13 +146,18 @@ export class BondTradingService {
     );
 
     if (maturityDate <= settlementDate) {
-      throw new BadRequestException('Bond is matured; YTM cannot be calculated');
+      throw new BadRequestException(
+        'Bond is matured; YTM cannot be calculated',
+      );
     }
 
     const faceValue = Number(bondRow.face_value ?? 0);
     const couponRate = Number(bondRow.coupon_rates ?? 0);
     const frequency = this.normalizeFrequency(bondRow.frequency);
-    const lastCouponDate = await this.resolveLastCouponDate(dto.symbol_id, dateOfIssue);
+    const lastCouponDate = await this.resolveLastCouponDate(
+      dto.symbol_id,
+      dateOfIssue,
+    );
     const nextCouponDate = this.addMonths(lastCouponDate, 12 / frequency);
     const accruedInterest = this.calculateAccruedInterest({
       faceValue,
@@ -178,7 +197,9 @@ export class BondTradingService {
     };
   }
 
-  private async getBondPricingRow(symbolId: number): Promise<Record<string, unknown>> {
+  private async getBondPricingRow(
+    symbolId: number,
+  ): Promise<Record<string, unknown>> {
     const query = `
       SELECT s.maturity_date, s.face_value, s.coupon_rates, s.date_of_issue, s.coupon_payable AS frequency
       FROM symbol s
@@ -248,9 +269,16 @@ export class BondTradingService {
     lastCouponDate: Date;
     nextCouponDate: Date;
   }): number {
-    const periodCoupon = (input.faceValue * (input.couponRate / 100)) / input.frequency;
-    const daysElapsed = this.daysBetween(input.lastCouponDate, input.settlementDate);
-    const daysInPeriod = Math.max(1, this.daysBetween(input.lastCouponDate, input.nextCouponDate));
+    const periodCoupon =
+      (input.faceValue * (input.couponRate / 100)) / input.frequency;
+    const daysElapsed = this.daysBetween(
+      input.lastCouponDate,
+      input.settlementDate,
+    );
+    const daysInPeriod = Math.max(
+      1,
+      this.daysBetween(input.lastCouponDate, input.nextCouponDate),
+    );
     return periodCoupon * (daysElapsed / daysInPeriod);
   }
 
@@ -298,7 +326,8 @@ export class BondTradingService {
     maturityDate: Date;
     nextCouponDate: Date;
   }): number {
-    const coupon = (input.faceValue * (input.couponRate / 100)) / input.frequency;
+    const coupon =
+      (input.faceValue * (input.couponRate / 100)) / input.frequency;
     const periodMonths = 12 / input.frequency;
     const periodRate = input.annualYieldDecimal / input.frequency;
 
@@ -318,7 +347,10 @@ export class BondTradingService {
       }
 
       couponDate = this.addMonths(couponDate, periodMonths);
-      if (couponDate > input.maturityDate && !this.isSameDay(couponDate, input.maturityDate)) {
+      if (
+        couponDate > input.maturityDate &&
+        !this.isSameDay(couponDate, input.maturityDate)
+      ) {
         break;
       }
     }
@@ -327,42 +359,7 @@ export class BondTradingService {
   }
 
   private calculateCommission(tradeValue: number): number {
-    if (tradeValue <= 0) {
-      return 0;
-    }
-
-    if (tradeValue <= 1000) {
-      return 10;
-    }
-
-    const brackets = [
-      { min: 1000, max: 100000, commMin: 10, commMax: 100 },
-      { min: 100001, max: 250000, commMin: 105, commMax: 200 },
-      { min: 250001, max: 500000, commMin: 210, commMax: 300 },
-      { min: 500001, max: 1000000, commMin: 320, commMax: 450 },
-      { min: 1000001, max: 2500000, commMin: 475, commMax: 600 },
-      { min: 2500001, max: 5000000, commMin: 650, commMax: 750 },
-      { min: 5000001, max: 10000000, commMin: 760, commMax: 1500 },
-      { min: 10000001, max: 25000000, commMin: 1550, commMax: 2500 },
-      { min: 25000001, max: 50000000, commMin: 2725, commMax: 4500 },
-      { min: 50000001, max: 100000000, commMin: 5000, commMax: 10000 },
-    ];
-
-    for (const bracket of brackets) {
-      if (tradeValue >= bracket.min && tradeValue <= bracket.max) {
-        const ratio = (tradeValue - bracket.min) / (bracket.max - bracket.min);
-        const commission =
-          bracket.commMin + ratio * (bracket.commMax - bracket.commMin);
-        return this.roundTo(commission, 2);
-      }
-    }
-
-    if (tradeValue >= 100000001) {
-      return 20000;
-    }
-
-    // Fallback should never happen, but keep safe behavior.
-    return 0;
+    return calculateBondCommission(tradeValue);
   }
 
   async placeBuyOrder(dto: BondBuyOrderDto): Promise<BondBuyResponseDto> {
@@ -377,6 +374,7 @@ export class BondTradingService {
     ) {
       throw new BadRequestException('Invalid order parameters.');
     }
+    this.assertExecutionSchemaCompatibleCdCode(dto.cd_code);
     if (dto.order_size <= 0 || dto.price <= 0) {
       throw new BadRequestException('Invalid order parameters.');
     }
@@ -384,7 +382,9 @@ export class BondTradingService {
       throw new BadRequestException('Volume should be multiple of 10.');
     }
     if (!this.hasAtMostTwoDecimals(dto.price)) {
-      throw new BadRequestException('Price should be at most 2 decimal places.');
+      throw new BadRequestException(
+        'Price should be at most 2 decimal places.',
+      );
     }
 
     const marketOpen = await this.isBondMarketOpen();
@@ -393,7 +393,10 @@ export class BondTradingService {
     }
 
     const accountMeta = await this.getAccountMeta(dto.cd_code);
-    if (dto.symbol_id === 118 && ['J', 'R', 'A'].includes(accountMeta.accType)) {
+    if (
+      dto.symbol_id === 118 &&
+      ['J', 'R', 'A'].includes(accountMeta.accType)
+    ) {
       throw new BadRequestException(
         'Institutions are not allowed to trade GNBB Bond.',
       );
@@ -423,7 +426,9 @@ export class BondTradingService {
     }
 
     const availableBalance = await this.getAvailableBalance(dto.cd_code);
-    const brokerContext = await this.getBrokerInstitutionContext(dto.order_entry);
+    const brokerContext = await this.getBrokerInstitutionContext(
+      dto.order_entry,
+    );
     const { commission, gst, totalAmount } = this.calculatePlacementAmounts(
       dto.price,
       dto.order_size,
@@ -440,9 +445,26 @@ export class BondTradingService {
       (await this.getInstitutionIdByCdCode(dto.cd_code));
     const flagId = this.generateFlagId();
     const queryRunner = this.cms22DataSource.createQueryRunner();
+    let orderId = 0;
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      await this.lockBondSymbol(queryRunner, dto.symbol_id);
+      await this.lockBondAccount(queryRunner, dto.cd_code);
+      await this.assertNoPendingOrderInTransaction(
+        queryRunner,
+        dto.cd_code,
+        dto.symbol_id,
+        dto.participant_code,
+      );
+      const lockedAvailableBalance =
+        await this.getAvailableBalanceInTransaction(queryRunner, dto.cd_code);
+      if (totalAmount > lockedAvailableBalance) {
+        throw new BadRequestException(
+          `Insufficient cash. Available: ${this.roundTo(lockedAvailableBalance, 2)}`,
+        );
+      }
+
       await this.insertBondOrderAudit(queryRunner, dto, flagId, commission);
 
       const insertOrderQuery = `
@@ -452,7 +474,7 @@ export class BondTradingService {
           sell_vol, buy_vol, acc_intrt, dirty_price, ytm, order_type
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      await queryRunner.query(insertOrderQuery, [
+      const insertOrderResult = await queryRunner.query(insertOrderQuery, [
         dto.cd_code.trim(),
         dto.participant_code.trim(),
         dto.order_entry.trim(),
@@ -470,6 +492,7 @@ export class BondTradingService {
         dto.ytm,
         dto.order_type.trim(),
       ]);
+      orderId = Number(insertOrderResult.insertId ?? 0);
 
       const remarks = `Bond Buy Order entry by user ${dto.order_entry.trim()} of member ${dto.participant_code.trim()} volume ${dto.order_size} @ Nu. ${dto.price}`;
       const insertFinanceQuery = `
@@ -497,7 +520,9 @@ export class BondTradingService {
       await queryRunner.release();
     }
 
-    await this.tryMatchBondTrade();
+    const match = orderId
+      ? await this.bondMatchingService.tryMatchOrder(orderId)
+      : undefined;
 
     return {
       message: 'Buy Order Placed successfully.',
@@ -505,6 +530,7 @@ export class BondTradingService {
       commission: this.roundTo(commission, 2),
       gst: this.roundTo(gst, 2),
       total_amount: this.roundTo(totalAmount, 2),
+      match,
     };
   }
 
@@ -520,6 +546,7 @@ export class BondTradingService {
     ) {
       throw new BadRequestException('Invalid order parameters.');
     }
+    this.assertExecutionSchemaCompatibleCdCode(dto.cd_code);
     if (dto.order_size <= 0 || dto.price <= 0) {
       throw new BadRequestException('Invalid order parameters.');
     }
@@ -527,7 +554,9 @@ export class BondTradingService {
       throw new BadRequestException('Volume should be multiple of 10.');
     }
     if (!this.hasAtMostTwoDecimals(dto.price)) {
-      throw new BadRequestException('Price should be at most 2 decimal places.');
+      throw new BadRequestException(
+        'Price should be at most 2 decimal places.',
+      );
     }
 
     const marketOpen = await this.isBondMarketOpen();
@@ -536,7 +565,10 @@ export class BondTradingService {
     }
 
     const accountMeta = await this.getAccountMeta(dto.cd_code);
-    if (dto.symbol_id === 118 && ['J', 'R', 'A'].includes(accountMeta.accType)) {
+    if (
+      dto.symbol_id === 118 &&
+      ['J', 'R', 'A'].includes(accountMeta.accType)
+    ) {
       throw new BadRequestException(
         'Institutions are not allowed to trade GNBB Bond.',
       );
@@ -565,14 +597,19 @@ export class BondTradingService {
       );
     }
 
-    const freeVolume = await this.getFreeHoldingVolume(dto.cd_code, dto.symbol_id);
+    const freeVolume = await this.getFreeHoldingVolume(
+      dto.cd_code,
+      dto.symbol_id,
+    );
     if (dto.order_size > freeVolume) {
       throw new BadRequestException(
         `Insufficient shares. Available: ${this.roundTo(freeVolume, 2)}`,
       );
     }
 
-    const brokerContext = await this.getBrokerInstitutionContext(dto.order_entry);
+    const brokerContext = await this.getBrokerInstitutionContext(
+      dto.order_entry,
+    );
     const { commission, gst, totalAmount } = this.calculatePlacementAmounts(
       dto.price,
       dto.order_size,
@@ -584,9 +621,37 @@ export class BondTradingService {
       (await this.getInstitutionIdByCdCode(dto.cd_code));
     const flagId = this.generateFlagId();
     const queryRunner = this.cms22DataSource.createQueryRunner();
+    let orderId = 0;
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      await this.lockBondSymbol(queryRunner, dto.symbol_id);
+      await this.assertNoPendingOrderInTransaction(
+        queryRunner,
+        dto.cd_code,
+        dto.symbol_id,
+        dto.participant_code,
+      );
+      const lockedHoldingRows = await queryRunner.query(
+        `
+          SELECT volume, pending_out_vol
+          FROM cds_holding
+          WHERE cd_code = ? AND symbol_id = ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [dto.cd_code.trim(), dto.symbol_id],
+      );
+      const lockedFreeVolume = lockedHoldingRows.length
+        ? Number(lockedHoldingRows[0].volume ?? 0) -
+          Number(lockedHoldingRows[0].pending_out_vol ?? 0)
+        : 0;
+      if (dto.order_size > lockedFreeVolume) {
+        throw new BadRequestException(
+          `Insufficient shares. Available: ${this.roundTo(lockedFreeVolume, 2)}`,
+        );
+      }
+
       await this.insertBondOrderAudit(queryRunner, dto, flagId, commission);
 
       const insertOrderQuery = `
@@ -596,7 +661,7 @@ export class BondTradingService {
           sell_vol, buy_vol, acc_intrt, dirty_price, ytm, order_type
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      await queryRunner.query(insertOrderQuery, [
+      const insertOrderResult = await queryRunner.query(insertOrderQuery, [
         dto.cd_code.trim(),
         dto.participant_code.trim(),
         dto.order_entry.trim(),
@@ -614,6 +679,7 @@ export class BondTradingService {
         dto.ytm,
         dto.order_type.trim(),
       ]);
+      orderId = Number(insertOrderResult.insertId ?? 0);
 
       const remarks = `Bond Sell Order entry by user ${dto.order_entry.trim()} of member ${dto.participant_code.trim()} volume ${dto.order_size} @ Nu. ${dto.price}`;
       const insertFinanceQuery = `
@@ -653,7 +719,9 @@ export class BondTradingService {
       await queryRunner.release();
     }
 
-    await this.tryMatchBondTrade();
+    const match = orderId
+      ? await this.bondMatchingService.tryMatchOrder(orderId)
+      : undefined;
 
     return {
       message: 'Sell Order Placed Successfully.',
@@ -661,10 +729,13 @@ export class BondTradingService {
       commission: this.roundTo(commission, 2),
       gst: this.roundTo(gst, 2),
       total_amount: this.roundTo(totalAmount, 2),
+      match,
     };
   }
 
-  async getPendingOrders(cdCode: string): Promise<BondPendingOrdersResponseDto> {
+  async getPendingOrders(
+    cdCode: string,
+  ): Promise<BondPendingOrdersResponseDto> {
     const query = `
       SELECT a.id AS order_id, a.cd_code, a.participant_code, a.member_broker,
              a.order_size, a.order_entry, a.flag_id, a.sell_vol, a.buy_vol,
@@ -676,32 +747,34 @@ export class BondTradingService {
       ORDER BY a.order_date DESC
     `;
     const rows = await this.cms22DataSource.query(query, [cdCode.trim()]);
-    const data: BondPendingOrderItemDto[] = rows.map((row: Record<string, unknown>) => ({
-      order_id: Number(row.order_id),
-      cd_code: String(row.cd_code ?? ''),
-      participant_code: String(row.participant_code ?? ''),
-      member_broker: String(row.member_broker ?? ''),
-      order_size: Number(row.order_size ?? 0),
-      order_entry: String(row.order_entry ?? ''),
-      flag_id: String(row.flag_id ?? ''),
-      sell_vol: Number(row.sell_vol ?? 0),
-      buy_vol: Number(row.buy_vol ?? 0),
-      price: Number(row.price ?? 0),
-      side: String(row.side ?? ''),
-      commis_amt: Number(row.commis_amt ?? 0),
-      order_date: row.order_date
-        ? new Date(String(row.order_date))
-            .toISOString()
-            .replace('T', ' ')
-            .substring(0, 19)
-        : '',
-      acc_intrt: Number(row.acc_intrt ?? 0),
-      dirty_price: Number(row.dirty_price ?? 0),
-      ytm: Number(row.ytm ?? 0),
-      symbol: String(row.symbol ?? ''),
-      symbol_id: Number(row.symbol_id ?? 0),
-      security_type: String(row.security_type ?? ''),
-    }));
+    const data: BondPendingOrderItemDto[] = rows.map(
+      (row: Record<string, unknown>) => ({
+        order_id: Number(row.order_id),
+        cd_code: String(row.cd_code ?? ''),
+        participant_code: String(row.participant_code ?? ''),
+        member_broker: String(row.member_broker ?? ''),
+        order_size: Number(row.order_size ?? 0),
+        order_entry: String(row.order_entry ?? ''),
+        flag_id: String(row.flag_id ?? ''),
+        sell_vol: Number(row.sell_vol ?? 0),
+        buy_vol: Number(row.buy_vol ?? 0),
+        price: Number(row.price ?? 0),
+        side: String(row.side ?? ''),
+        commis_amt: Number(row.commis_amt ?? 0),
+        order_date: row.order_date
+          ? new Date(String(row.order_date))
+              .toISOString()
+              .replace('T', ' ')
+              .substring(0, 19)
+          : '',
+        acc_intrt: Number(row.acc_intrt ?? 0),
+        dirty_price: Number(row.dirty_price ?? 0),
+        ytm: Number(row.ytm ?? 0),
+        symbol: String(row.symbol ?? ''),
+        symbol_id: Number(row.symbol_id ?? 0),
+        security_type: String(row.security_type ?? ''),
+      }),
+    );
     return { data, count: data.length };
   }
 
@@ -790,11 +863,14 @@ export class BondTradingService {
     cdCode: string,
     dto: BondUpdateOrderRequestDto,
   ): Promise<BondUpdateOrderResponseDto> {
+    this.assertExecutionSchemaCompatibleCdCode(cdCode);
     if (dto.order_size % 10 !== 0) {
       throw new BadRequestException('Volume should be multiple of 10.');
     }
     if (!this.hasAtMostTwoDecimals(dto.price)) {
-      throw new BadRequestException('Price should be at most 2 decimal places.');
+      throw new BadRequestException(
+        'Price should be at most 2 decimal places.',
+      );
     }
 
     const existing = await this.loadBondOrderForUpdate(
@@ -806,7 +882,7 @@ export class BondTradingService {
       throw new BadRequestException('Order details do not match.');
     }
 
-    const oldVol = existing.side === 'S' ? existing.sell_vol : existing.buy_vol;
+    let oldVol = existing.side === 'S' ? existing.sell_vol : existing.buy_vol;
     if (Number(existing.order_size) - oldVol !== 0) {
       throw new BadRequestException('Only fully open orders can be updated.');
     }
@@ -857,7 +933,8 @@ export class BondTradingService {
     }
 
     const newBuyVol = existing.side === 'B' ? dto.order_size : existing.buy_vol;
-    const newSellVol = existing.side === 'S' ? dto.order_size : existing.sell_vol;
+    const newSellVol =
+      existing.side === 'S' ? dto.order_size : existing.sell_vol;
     const financeAmount = existing.side === 'B' ? -totalAmount : totalAmount;
     const remarks = `Bond ${existing.side === 'B' ? 'Buy' : 'Sell'} Order updated by user ${existing.order_entry} volume ${dto.order_size} @ Nu. ${dto.price}`;
 
@@ -865,6 +942,50 @@ export class BondTradingService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      await this.lockBondSymbol(queryRunner, dto.symbol_id);
+      const lockedOrderRows = await queryRunner.query(
+        `
+          SELECT order_size, buy_vol, sell_vol, side
+          FROM bond_orders
+          WHERE id = ? AND flag_id = ? AND cd_code = ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [dto.order_id, dto.flag_id, cdCode],
+      );
+      if (!lockedOrderRows.length) {
+        throw new NotFoundException('Order is no longer pending.');
+      }
+      const lockedOrder = lockedOrderRows[0];
+      if (String(lockedOrder.side) !== existing.side) {
+        throw new BadRequestException('Order details do not match.');
+      }
+      oldVol =
+        existing.side === 'S'
+          ? Number(lockedOrder.sell_vol ?? 0)
+          : Number(lockedOrder.buy_vol ?? 0);
+      if (Number(lockedOrder.order_size ?? 0) - oldVol !== 0) {
+        throw new BadRequestException('Only fully open orders can be updated.');
+      }
+
+      if (existing.side === 'B') {
+        await this.lockBondAccount(queryRunner, cdCode);
+        const balanceRows = await queryRunner.query(
+          `
+            SELECT COALESCE(SUM(m.amount), 0) AS total_amount
+            FROM bbo_finance m
+            WHERE m.cd_code = ? AND m.flag_id != ?
+          `,
+          [cdCode, dto.flag_id],
+        );
+        const lockedAvailable = Number(balanceRows[0]?.total_amount ?? 0);
+        if (totalAmount > lockedAvailable) {
+          throw new BadRequestException(
+            `Insufficient cash. Available: ${this.roundTo(lockedAvailable, 2)}`,
+          );
+        }
+      }
+
       if (existing.side === 'S') {
         const holdingRows = await queryRunner.query(
           `
@@ -872,11 +993,21 @@ export class BondTradingService {
             FROM cds_holding h
             WHERE h.cd_code = ? AND h.symbol_id = ?
             LIMIT 1
+            FOR UPDATE
           `,
           [cdCode, dto.symbol_id],
         );
+        if (!holdingRows.length) {
+          throw new BadRequestException('Insufficient shares. Available: 0');
+        }
         const volume = Number(holdingRows[0]?.volume ?? 0);
         const pendingOut = Number(holdingRows[0]?.pending_out_vol ?? 0);
+        const lockedFreeVolume = volume + oldVol;
+        if (dto.order_size > lockedFreeVolume) {
+          throw new BadRequestException(
+            `Insufficient shares. Available: ${this.roundTo(lockedFreeVolume, 2)}`,
+          );
+        }
         const newPendingOut = pendingOut - oldVol + dto.order_size;
         const newVolume = volume + oldVol - dto.order_size;
         await queryRunner.query(
@@ -893,9 +1024,9 @@ export class BondTradingService {
         `
           UPDATE bbo_finance
           SET remarks = ?, amount = ?
-          WHERE flag_id = ? AND flag = 0
+          WHERE flag_id = ? AND flag = 0 AND cd_code = ? AND symbol_id = ?
         `,
-        [remarks, financeAmount, dto.flag_id],
+        [remarks, financeAmount, dto.flag_id, cdCode, dto.symbol_id],
       );
 
       await this.insertBondOrderAudit(
@@ -957,13 +1088,14 @@ export class BondTradingService {
       await queryRunner.release();
     }
 
-    await this.tryMatchBondTrade();
+    const match = await this.bondMatchingService.tryMatchOrder(dto.order_id);
 
     return {
       message: 'Order updated successfully.',
       commission: this.roundTo(commission, 2),
       gst: this.roundTo(gst, 2),
       total_amount: this.roundTo(totalAmount, 2),
+      match,
     };
   }
 
@@ -986,8 +1118,10 @@ export class BondTradingService {
       throw new NotFoundException('Order not found.');
     }
     const order = orderRows[0] as Record<string, unknown>;
-    const volCol =
-      dto.side === 'S' ? Number(order.sell_vol ?? 0) : Number(order.buy_vol ?? 0);
+    let volCol =
+      dto.side === 'S'
+        ? Number(order.sell_vol ?? 0)
+        : Number(order.buy_vol ?? 0);
     const orderSize = Number(order.order_size ?? 0);
     if (orderSize - volCol !== 0) {
       throw new BadRequestException('Only fully open orders can be cancelled.');
@@ -997,6 +1131,31 @@ export class BondTradingService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
+      await this.lockBondSymbol(queryRunner, dto.symbol_id);
+      const lockedOrderRows = await queryRunner.query(
+        `
+          SELECT order_size, buy_vol, sell_vol
+          FROM bond_orders
+          WHERE id = ? AND symbol_id = ? AND side = ? AND flag_id = ? AND cd_code = ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [dto.order_id, dto.symbol_id, dto.side, dto.flag_id, cdCode],
+      );
+      if (!lockedOrderRows.length) {
+        throw new NotFoundException('Order is no longer pending.');
+      }
+      const lockedOrder = lockedOrderRows[0];
+      volCol =
+        dto.side === 'S'
+          ? Number(lockedOrder.sell_vol ?? 0)
+          : Number(lockedOrder.buy_vol ?? 0);
+      if (Number(lockedOrder.order_size ?? 0) - volCol !== 0) {
+        throw new BadRequestException(
+          'Only fully open orders can be cancelled.',
+        );
+      }
+
       if (dto.side === 'S') {
         const holdingRows = await queryRunner.query(
           `
@@ -1004,11 +1163,14 @@ export class BondTradingService {
             FROM cds_holding
             WHERE symbol_id = ? AND cd_code = ?
             LIMIT 1
+            FOR UPDATE
           `,
           [dto.symbol_id, cdCode],
         );
         if (!holdingRows.length) {
-          throw new BadRequestException('Holding record not found for sell cancel.');
+          throw new BadRequestException(
+            'Holding record not found for sell cancel.',
+          );
         }
         const pendingOut = Number(holdingRows[0].pending_out_vol ?? 0);
         const volume = Number(holdingRows[0].volume ?? 0);
@@ -1056,9 +1218,9 @@ export class BondTradingService {
       await queryRunner.query(
         `
           DELETE FROM bbo_finance
-          WHERE flag_id = ? AND cd_code = ? AND flag = 0
+          WHERE flag_id = ? AND cd_code = ? AND symbol_id = ? AND flag = 0
         `,
-        [dto.flag_id, cdCode],
+        [dto.flag_id, cdCode, dto.symbol_id],
       );
 
       await queryRunner.commitTransaction();
@@ -1113,7 +1275,9 @@ export class BondTradingService {
       order_entry: String(row.order_entry ?? ''),
       participant_code: String(row.participant_code ?? ''),
       order_type: String(row.order_type ?? 'OTC'),
-      gst_register: String(row.gst_register ?? 'N').trim().toUpperCase(),
+      gst_register: String(row.gst_register ?? 'N')
+        .trim()
+        .toUpperCase(),
     };
   }
 
@@ -1125,7 +1289,9 @@ export class BondTradingService {
     }
 
     const holidayQuery = `SELECT 1 FROM holiday WHERE holiday_date = ? LIMIT 1`;
-    const holidayRows = await this.cms22DataSource.query(holidayQuery, [now.date]);
+    const holidayRows = await this.cms22DataSource.query(holidayQuery, [
+      now.date,
+    ]);
     if (holidayRows.length > 0) {
       return false;
     }
@@ -1148,7 +1314,9 @@ export class BondTradingService {
       return { accType: '' };
     }
     return {
-      accType: String(rows[0].acc_type || '').trim().toUpperCase(),
+      accType: String(rows[0].acc_type || '')
+        .trim()
+        .toUpperCase(),
     };
   }
 
@@ -1175,7 +1343,9 @@ export class BondTradingService {
       participantCode: rows[0].participant_code
         ? String(rows[0].participant_code)
         : null,
-      gstRegister: String(rows[0].gst_register || 'N').trim().toUpperCase(),
+      gstRegister: String(rows[0].gst_register || 'N')
+        .trim()
+        .toUpperCase(),
     };
   }
 
@@ -1183,16 +1353,96 @@ export class BondTradingService {
     price: number,
     volume: number,
     gstRegister: string,
-  ): { tradeValue: number; commission: number; gst: number; totalAmount: number } {
-    const tradeValue = price * volume;
-    const commission = this.calculateCommission(tradeValue);
-    const gst =
-      gstRegister === 'Y' ? this.roundTo(commission * 0.05, 2) : 0;
-    const totalAmount = this.roundTo(tradeValue + commission + gst, 2);
-    return { tradeValue, commission, gst, totalAmount };
+  ): {
+    tradeValue: number;
+    commission: number;
+    gst: number;
+    totalAmount: number;
+  } {
+    return calculateBondPlacementAmounts(price, volume, gstRegister);
   }
 
-  private async getInstitutionIdByCdCode(cdCode: string): Promise<number | null> {
+  private async lockBondSymbol(
+    queryRunner: QueryRunner,
+    symbolId: number,
+  ): Promise<void> {
+    const rows = await queryRunner.query(
+      `
+        SELECT symbol_id
+        FROM symbol
+        WHERE symbol_id = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [symbolId],
+    );
+    if (!rows.length) {
+      throw new NotFoundException('Bond symbol not found.');
+    }
+  }
+
+  private async lockBondAccount(
+    queryRunner: QueryRunner,
+    cdCode: string,
+  ): Promise<void> {
+    const rows = await queryRunner.query(
+      `
+        SELECT cd_code
+        FROM client_account
+        WHERE cd_code = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [cdCode.trim()],
+    );
+    if (!rows.length) {
+      throw new NotFoundException('Client account not found.');
+    }
+  }
+
+  private async assertNoPendingOrderInTransaction(
+    queryRunner: QueryRunner,
+    cdCode: string,
+    symbolId: number,
+    participantCode: string,
+  ): Promise<void> {
+    const rows = await queryRunner.query(
+      `
+        SELECT id
+        FROM bond_orders
+        WHERE cd_code = ?
+          AND symbol_id = ?
+          AND participant_code = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [cdCode.trim(), symbolId, participantCode.trim()],
+    );
+    if (rows.length) {
+      throw new BadRequestException(
+        'An order already exists. Consider updating it.',
+      );
+    }
+  }
+
+  private async getAvailableBalanceInTransaction(
+    queryRunner: QueryRunner,
+    cdCode: string,
+  ): Promise<number> {
+    const rows = await queryRunner.query(
+      `
+        SELECT COALESCE(SUM(amount), 0) AS available_balance
+        FROM bbo_finance
+        WHERE cd_code = ?
+      `,
+      [cdCode.trim()],
+    );
+    return Number(rows[0]?.available_balance ?? 0);
+  }
+
+  private async getInstitutionIdByCdCode(
+    cdCode: string,
+  ): Promise<number | null> {
     const query = `
       SELECT b.institution_id
       FROM client_account a
@@ -1326,31 +1576,31 @@ export class BondTradingService {
     ]);
   }
 
-  private async tryMatchBondTrade(): Promise<void> {
-    try {
-      await this.cms22DataSource.query('CALL try_match_bond_trade()');
-    } catch {
-      // Best effort to keep parity with legacy flow where matching is attempted immediately.
-    }
-  }
-
   private hasAtMostTwoDecimals(value: number): boolean {
     const normalized = Number(value);
     return Number.isInteger(normalized * 100);
   }
 
-  private generateFlagId(): string {
-    const now = new Date();
-    const year = now.getFullYear().toString().substring(2);
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    return `${year}${month}${day}${hours}${minutes}${seconds}`;
+  private assertExecutionSchemaCompatibleCdCode(cdCode: string): void {
+    if (cdCode.trim().length > 10) {
+      throw new BadRequestException(
+        'This account code cannot trade bonds until bond_executed_orders.cd_code is widened to VARCHAR(15).',
+      );
+    }
   }
 
-  private getThimphuNowParts(): { date: string; time: string; weekday: string } {
+  private generateFlagId(): string {
+    const lowerBound = 100_000_000_000_000n;
+    const range = 900_000_000_000_000n;
+    const entropy = randomBytes(8).readBigUInt64BE();
+    return String(lowerBound + (entropy % range));
+  }
+
+  private getThimphuNowParts(): {
+    date: string;
+    time: string;
+    weekday: string;
+  } {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Thimphu',
       year: 'numeric',
@@ -1362,7 +1612,8 @@ export class BondTradingService {
       weekday: 'short',
     });
     const parts = formatter.formatToParts(new Date());
-    const pick = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    const pick = (type: string) =>
+      parts.find((p) => p.type === type)?.value ?? '';
     return {
       date: `${pick('year')}-${pick('month')}-${pick('day')}`,
       time: `${pick('hour')}:${pick('minute')}`,
@@ -1407,7 +1658,13 @@ export class BondTradingService {
 
   private daysBetween(from: Date, to: Date): number {
     const msInDay = 1000 * 60 * 60 * 24;
-    return Math.max(0, Math.round((this.startOfDay(to).getTime() - this.startOfDay(from).getTime()) / msInDay));
+    return Math.max(
+      0,
+      Math.round(
+        (this.startOfDay(to).getTime() - this.startOfDay(from).getTime()) /
+          msInDay,
+      ),
+    );
   }
 
   private isSameDay(a: Date, b: Date): boolean {
