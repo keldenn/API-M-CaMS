@@ -35,10 +35,7 @@ import {
 } from './dto/bond-cancel-order.dto';
 import { BondVolRequestDto, BondVolResponseDto } from './dto/bond-vol.dto';
 import { BondYtmRequestDto, BondYtmResponseDto } from './dto/bond-ytm.dto';
-import {
-  BondHistoryRequestDto,
-  BondExecutedHistoryResponseDto,
-} from './dto/bond-history.dto';
+import { BondExecutedHistoryResponseDto } from './dto/bond-history.dto';
 import {
   BondOrderbookRequestDto,
   BondOrderbookResponseDto,
@@ -123,7 +120,7 @@ export class BondTradingController {
   @ApiOperation({
     summary: 'Get total holding volume',
     description:
-      'Returns total holding volume from cds_holding (not free volume). Sell validation is server-side using volume - pending_out_vol.',
+      'Returns free holding volume from cds_holding (`volume`). Sell validation uses the same free volume; pending sells are tracked in `pending_out_vol`.',
   })
   @ApiBody({ type: BondVolRequestDto })
   @ApiOkResponse({
@@ -208,7 +205,7 @@ export class BondTradingController {
   @ApiOperation({
     summary: 'Place bond sell order',
     description:
-      'Places a SELL order. `cd_code`, `order_entry` (username), and `participant_code` (first 7 chars of username) are taken from the JWT access token. `order_type` is set server-side to `OTC`. Free volume is validated as `volume - pending_out_vol`.',
+      'Places a SELL order. `cd_code`, `order_entry` (username), and `participant_code` (first 7 chars of username) are taken from the JWT access token. `order_type` is set server-side to `OTC`. Free volume is validated from `cds_holding.volume` (pending sells are already moved into `pending_out_vol`).',
   })
   @ApiBody({ type: BondSellRequestDto })
   @ApiOkResponse({
@@ -256,22 +253,18 @@ export class BondTradingController {
   @ApiOperation({
     summary: 'Get bond executed order history',
     description:
-      'Returns executed bond orders from `bond_executed_orders` for the given `cd_code` in the request body. JWT required; if the token includes `cd_code`, it must match the body.',
+      'Returns executed bond orders from `bond_executed_orders` for the authenticated user using `cd_code` from the JWT access token.',
   })
-  @ApiBody({ type: BondHistoryRequestDto })
   @ApiOkResponse({
     description: 'Bond executed history retrieved successfully',
     type: BondExecutedHistoryResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'cd_code missing/invalid' })
   @ApiResponse({ status: 401, description: 'Unauthorized - JWT token required' })
-  @ApiResponse({ status: 403, description: 'CD code does not match authenticated user' })
   async getBondHistory(
     @Request() req: { user?: { cd_code?: string } },
-    @Body() dto: BondHistoryRequestDto,
   ): Promise<BondExecutedHistoryResponseDto> {
-    const cdCode = this.resolveCdCodeFromPostBody(req.user, dto.cd_code);
-    return this.bondTradingService.getBondExecutedHistory(cdCode);
+    const cd_code = this.resolveCdCodeFromJwt(req.user);
+    return this.bondTradingService.getBondExecutedHistory(cd_code);
   }
 
   @Post('orderbook')

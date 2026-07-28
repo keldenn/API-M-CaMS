@@ -845,9 +845,10 @@ export class BondTradingService {
       if (!holdingRows.length) {
         throw new BadRequestException('Insufficient shares. Available: 0');
       }
+      // `volume` is free shares; this order's size is already in pending_out_vol.
+      // Available for the new size = current free + shares already reserved by this order.
       const volume = Number(holdingRows[0].volume ?? 0);
-      const pendingOut = Number(holdingRows[0].pending_out_vol ?? 0);
-      const freeVolume = volume - pendingOut + oldVol;
+      const freeVolume = volume + oldVol;
       if (dto.order_size > freeVolume) {
         throw new BadRequestException(
           `Insufficient shares. Available: ${this.roundTo(freeVolume, 2)}`,
@@ -1260,8 +1261,9 @@ export class BondTradingService {
     cdCode: string,
     symbolId: number,
   ): Promise<number> {
+    // `cds_holding.volume` is already free/available; pending sells live in pending_out_vol.
     const query = `
-      SELECT COALESCE(volume - pending_out_vol, 0) AS free_vol
+      SELECT COALESCE(volume, 0) AS free_vol
       FROM cds_holding
       WHERE cd_code = ? AND symbol_id = ?
       LIMIT 1

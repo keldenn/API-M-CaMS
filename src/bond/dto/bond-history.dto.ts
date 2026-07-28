@@ -1,12 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
-
-export class BondHistoryRequestDto {
-  @ApiProperty({ example: 'U202500016', description: 'Client CD code' })
-  @IsString()
-  @IsNotEmpty()
-  cd_code!: string;
-}
 
 export class BondExecutedHistoryItemDto {
   @ApiProperty({ example: 1 })
