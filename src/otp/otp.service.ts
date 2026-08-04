@@ -76,6 +76,12 @@ export class OtpService {
             message: 'No phone number provided. OTP sent to email',
             data: 'SENT',
           };
+        } else if (emailSuccess && phone_no && !smsSuccess) {
+          return {
+            error: false,
+            message: 'SMS delivery failed. OTP sent to email',
+            data: 'SENT',
+          };
         } else {
           const failedMethods: string[] = [];
           if (phone_no && !smsSuccess) failedMethods.push('SMS');

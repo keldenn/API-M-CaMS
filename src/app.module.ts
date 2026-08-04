@@ -24,10 +24,12 @@ import { WatchlistModule } from './watchlist/watchlist.module';
 import { ProfileModule } from './profile/profile.module';
 import { BondModule } from './bond/bond.module';
 import { RightsModule } from './rights/rights.module';
+import { UnclaimedModule } from './unclaimed/unclaimed.module';
 import {
   getDatabaseConfig,
   getFinancialDatabaseConfig,
   getCms22DatabaseConfig,
+  getUnclaimedDatabaseConfig,
 } from './config/database.config';
 import { JwtAuthGlobalGuard } from './auth/guards/jwt-auth-global.guard';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -54,6 +56,11 @@ import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.
       useFactory: getCms22DatabaseConfig,
       inject: [ConfigService],
     }),
+    TypeOrmModule.forRootAsync({
+      name: 'unclaimed',
+      useFactory: getUnclaimedDatabaseConfig,
+      inject: [ConfigService],
+    }),
     AuthModule,
     OtpModule,
     NdiModule,
@@ -74,6 +81,7 @@ import { AccountExpiryFcmModule } from './account-expiry-fcm/account-expiry-fcm.
     ProfileModule,
     BondModule,
     RightsModule,
+    UnclaimedModule,
     ScheduleModule.forRoot(),
     AccountExpiryFcmModule,
   ],
