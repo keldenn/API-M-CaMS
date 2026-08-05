@@ -1,13 +1,17 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   HttpException,
   HttpStatus,
   Param,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -16,6 +20,10 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UnclaimedService } from './unclaimed.service';
 import { UnclaimedResponseDto } from './dto/unclaimed-response.dto';
+import {
+  BulkUpdateUnclaimedDto,
+  BulkUpdateUnclaimedResponseDto,
+} from './dto/bulk-update-unclaimed.dto';
 
 @ApiTags('Unclaimed')
 @Controller('unclaimed')
@@ -23,6 +31,47 @@ import { UnclaimedResponseDto } from './dto/unclaimed-response.dto';
 @ApiBearerAuth('JWT-auth')
 export class UnclaimedController {
   constructor(private readonly unclaimedService: UnclaimedService) {}
+
+  @Post('update')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Bulk update unclaimed bank details by record IDs',
+    description:
+      'Updates name_of_bank, account_no, account_holder_cid, account_holder_name for the given ids (must belong to cid). Sets status to "Under Verification" and writes one audit_logs row per id with user_id = "mcmas".',
+  })
+  @ApiBody({ type: BulkUpdateUnclaimedDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Records updated successfully',
+    type: BulkUpdateUnclaimedResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Validation or ownership error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'No matching records found' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async bulkUpdate(
+    @Body() dto: BulkUpdateUnclaimedDto,
+  ): Promise<BulkUpdateUnclaimedResponseDto> {
+    try {
+      const data = await this.unclaimedService.bulkUpdate(dto);
+
+      return {
+        error: false,
+        message: 'Unclaimed details submitted for verification successfully',
+        data,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      console.error('Error in POST /unclaimed/update:', error);
+      throw new HttpException(
+        'Failed to update unclaimed details',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   @Get(':cid')
   @ApiOperation({
