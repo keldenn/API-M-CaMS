@@ -18,10 +18,6 @@ const AUDIT_USER_ID = 'mcmas';
 type UnclaimedRowForUpdate = {
   id: number;
   cid: string | null;
-  name_of_bank: string | null;
-  account_no: string | null;
-  account_holder_cid: string | null;
-  account_holder_name: string | null;
   status: string | null;
 };
 
@@ -109,10 +105,6 @@ export class UnclaimedService {
       SELECT
         id,
         cid,
-        name_of_bank,
-        account_no,
-        account_holder_cid,
-        account_holder_name,
         status
       FROM unclaimed_clients_dtls
       WHERE id IN (${placeholders})
@@ -145,22 +137,9 @@ export class UnclaimedService {
         });
       }
 
-      const newValue = JSON.stringify({
-        name_of_bank: nameOfBank,
-        account_no: accountNo,
-        account_holder_cid: accountHolderCid,
-        account_holder_name: accountHolderName,
-        status: STATUS_UNDER_VERIFICATION,
-      });
-
       for (const row of existingRows) {
-        const previousValue = JSON.stringify({
-          name_of_bank: row.name_of_bank ?? null,
-          account_no: row.account_no ?? null,
-          account_holder_cid: row.account_holder_cid ?? null,
-          account_holder_name: row.account_holder_name ?? null,
-          status: row.status ?? null,
-        });
+        const previousValue = row.status ?? null;
+        const newValue = STATUS_UNDER_VERIFICATION;
 
         await queryRunner.query(
           `

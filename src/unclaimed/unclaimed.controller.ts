@@ -37,7 +37,7 @@ export class UnclaimedController {
   @ApiOperation({
     summary: 'Bulk update unclaimed bank details by record IDs',
     description:
-      'Updates name_of_bank, account_no, account_holder_cid, account_holder_name for the given ids (must belong to cid). Sets status to "Under Verification" and writes one audit_logs row per id with user_id = "mcmas".',
+      'Updates name_of_bank, account_no, account_holder_cid, account_holder_name for the given ids (must belong to cid). Sets status to "Under Verification" (does not change bank_acc_check). Writes one audit_logs row per id with user_id = "mcmas", previous_value = prior status, new_value = "Under Verification".',
   })
   @ApiBody({ type: BulkUpdateUnclaimedDto })
   @ApiResponse({
