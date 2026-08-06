@@ -51,7 +51,6 @@ export class UnclaimedService {
         bank_acc_check
       FROM unclaimed_clients_dtls
       WHERE cid = ?
-        AND (status IS NULL OR status <> 'Paid')
       ORDER BY year DESC, company ASC, id ASC
     `;
 

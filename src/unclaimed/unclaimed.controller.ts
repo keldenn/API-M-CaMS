@@ -77,7 +77,7 @@ export class UnclaimedController {
   @ApiOperation({
     summary: 'Get unclaimed dividend/rights details by CID',
     description:
-      'Returns unpaid unclaimed records (status IS NULL or not Paid) for the given CID from the unclaimed database. Uses indexed lookup on cid.',
+      'Returns all unclaimed records for the given CID (all statuses, including Paid) from the unclaimed database. Uses indexed lookup on cid.',
   })
   @ApiParam({
     name: 'cid',
