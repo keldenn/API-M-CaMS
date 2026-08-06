@@ -147,12 +147,12 @@ export class RenewService {
       .slice(0, 14);
     const orderNo = dto.orderNo;
 
-    if (dto.email === '0' || dto.email === 'NULL' || dto.email === '') {
-      return {
-        status: '100',
-        message: 'Email cannot be empty.',
-      };
-    }
+    // if (dto.email === '0' || dto.email === 'NULL' || dto.email === '') {
+    //   return {
+    //     status: '100',
+    //     message: 'Email cannot be empty.',
+    //   };
+    // }
 
     const gst = dto.gst ?? 0;
     const fee = dto.fee ?? 0;
