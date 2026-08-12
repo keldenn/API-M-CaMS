@@ -12,6 +12,7 @@ export default registerAs('ndi', () => ({
   verifierUrl:
     process.env.NDI_PROOF_REQUEST_URL ||
     'https://app.rsebl.org.bt/verifier/v1/proof-request',
+  billSubmittedUrl: process.env.NDI_BILL_SUBMITTED_URL,
 
   // NATS Configuration
   natsUrl: process.env.NDI_NATS_URL || 'nats://app.rsebl.org.bt:4222',

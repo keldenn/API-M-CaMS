@@ -13,6 +13,7 @@ import { NdiAuthService } from '../services/ndi-auth.service';
 import { NdiVerifierService } from '../services/ndi-verifier.service';
 import { NatsService } from '../services/nats.service';
 import { NdiIntegrationService } from '../services/ndi-integration.service';
+import { NdiBillingService } from '../services/ndi-billing.service';
 import {
   NdiAuthRequestDto,
   NdiAuthResponseDto,
@@ -22,6 +23,10 @@ import {
   NdiVerificationInitiateDto,
   NdiVerificationResponseDto,
 } from '../dto/ndi-auth.dto';
+import {
+  NdiBillSubmitDto,
+  NdiBillSubmitResponseDto,
+} from '../dto/ndi-bill-submit.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 
 @ApiTags('NDI Verifier')
@@ -34,6 +39,7 @@ export class NdiController {
     private readonly ndiVerifierService: NdiVerifierService,
     private readonly natsService: NatsService,
     private readonly ndiIntegrationService: NdiIntegrationService,
+    private readonly ndiBillingService: NdiBillingService,
   ) {}
 
   @Public()
@@ -249,5 +255,29 @@ export class NdiController {
       message: 'Verification resources cleaned up successfully',
       threadId,
     };
+  }
+
+  @Public()
+  @Post('bill/submit')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Submit NDI billing record',
+    description:
+      'Inserts a billing row into ndi_billing (service_type = mcmas_registration), then notifies NDI via bill-submitted API.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Billing record submitted successfully',
+    type: NdiBillSubmitResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request body',
+  })
+  async submitBill(
+    @Body() body: NdiBillSubmitDto,
+  ): Promise<NdiBillSubmitResponseDto> {
+    this.logger.log(`NDI bill submit request for order_no=${body.order_no}`);
+    return this.ndiBillingService.submitBill(body);
   }
 }
