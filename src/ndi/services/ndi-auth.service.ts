@@ -20,9 +20,10 @@ export class NdiAuthService {
   async authenticate(
     clientId: string,
     clientSecret: string,
+    authUrl = this.authUrl,
   ): Promise<NdiAuthResponseDto> {
     try {
-      this.logger.log(`Authenticating with NDI at: ${this.authUrl}`);
+      this.logger.log(`Authenticating with NDI at: ${authUrl}`);
       this.logger.log(`Client ID: ${clientId}`);
 
       const authRequest: NdiAuthRequestDto = {
@@ -36,7 +37,7 @@ export class NdiAuthService {
         JSON.stringify(authRequest, null, 2),
       );
 
-      const response = await axios.post(this.authUrl, authRequest, {
+      const response = await axios.post(authUrl, authRequest, {
         headers: {
           'Content-Type': 'application/json',
           accept: '*/*',
@@ -48,10 +49,12 @@ export class NdiAuthService {
         (response.status === 200 || response.status === 201) &&
         response.data.access_token
       ) {
-        this.accessToken = response.data.access_token;
-        this.tokenExpiry = new Date(
-          Date.now() + response.data.expires_in * 1000,
-        );
+        if (authUrl === this.authUrl) {
+          this.accessToken = response.data.access_token;
+          this.tokenExpiry = new Date(
+            Date.now() + response.data.expires_in * 1000,
+          );
+        }
 
         this.logger.log('Successfully authenticated with NDI');
         return response.data;
@@ -76,7 +79,34 @@ export class NdiAuthService {
   }
 
   async getValidAccessToken(): Promise<string> {
-    // Always get a fresh token for each request to avoid cross-browser issues
+    const { clientId, clientSecret } = this.getClientCredentials();
+    const authResponse = await this.authenticate(clientId, clientSecret);
+    return authResponse.access_token;
+  }
+
+  /**
+   * Token for POST /ndi/bill/submit only (demo bill-submitted API).
+   * Uses NDI_AUTH_URL_STAGING; all other NDI flows keep prod NDI_AUTH_URL.
+   */
+  async getValidAccessTokenForStaging(): Promise<string> {
+    const stagingAuthUrl = this.configService.get<string>('ndi.authUrlStaging');
+    if (!stagingAuthUrl) {
+      throw new HttpException(
+        'NDI_AUTH_URL_STAGING is not configured',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const { clientId, clientSecret } = this.getClientCredentials();
+    const authResponse = await this.authenticate(
+      clientId,
+      clientSecret,
+      stagingAuthUrl,
+    );
+    return authResponse.access_token;
+  }
+
+  private getClientCredentials(): { clientId: string; clientSecret: string } {
     const clientId = this.configService.get<string>('ndi.clientId');
     const clientSecret = this.configService.get<string>('ndi.clientSecret');
 
@@ -87,9 +117,7 @@ export class NdiAuthService {
       );
     }
 
-    // Always authenticate fresh for each request
-    const authResponse = await this.authenticate(clientId, clientSecret);
-    return authResponse.access_token;
+    return { clientId, clientSecret };
   }
 
   isTokenValid(): boolean {

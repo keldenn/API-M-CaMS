@@ -5,6 +5,8 @@ export default registerAs('ndi', () => ({
   authUrl:
     process.env.NDI_AUTH_URL ||
     'https://core.bhutanndi.com/authentication/authenticate',
+  // Used only by POST /ndi/bill/submit (demo bill-submitted API)
+  authUrlStaging: process.env.NDI_AUTH_URL_STAGING,
   clientId: process.env.NDI_CLIENT_ID,
   clientSecret: process.env.NDI_CLIENT_SECRET,
 

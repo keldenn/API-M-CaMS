@@ -114,7 +114,8 @@ export class NdiVerifierService {
         `Submitting bill to NDI for threadIds: ${threadIds.join(', ')}`,
       );
 
-      const accessToken = await this.ndiAuthService.getValidAccessToken();
+      const accessToken =
+        await this.ndiAuthService.getValidAccessTokenForStaging();
       const billSubmittedUrl = this.configService.get<string>(
         'ndi.billSubmittedUrl',
       );

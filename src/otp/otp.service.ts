@@ -70,6 +70,12 @@ export class OtpService {
             message: 'No email address provided. OTP sent to phone number',
             data: 'SENT',
           };
+        } else if (smsSuccess && email && !emailSuccess) {
+          return {
+            error: false,
+            message: 'Email delivery failed. OTP sent to phone number',
+            data: 'SENT',
+          };
         } else if (emailSuccess && !phone_no) {
           return {
             error: false,
@@ -88,9 +94,9 @@ export class OtpService {
           if (email && !emailSuccess) failedMethods.push('email');
 
           return {
-            error: true,
+            error: false,
             message: `OTP was generated but delivery failed for ${failedMethods.join(' and ')}`,
-            data: '',
+            data: 'SENT',
           };
         }
       } else {
@@ -217,31 +223,42 @@ export class OtpService {
 
   private async sendEmail(email: string, message: string): Promise<boolean> {
     try {
-      const smtpPort = Number(this.configService.get<number>('SMTP_PORT') || 587);
+      const smtpPort = Number(this.configService.get<string>('SMTP_PORT') || 587);
       const isSecure = smtpPort === 465;
+      const smtpUser = this.configService.get<string>('SMTP_USER');
+      const smtpPass = this.configService.get<string>('SMTP_PASS');
+      const fromAddress =
+        this.configService.get<string>('SMTP_FROM') ||
+        smtpUser ||
+        'noreply@example.com';
 
-      // Create transporter (you can configure this based on your email service)
       const transporter = nodemailer.createTransport({
         host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
         port: smtpPort,
         secure: isSecure,
         auth: {
-          user: this.configService.get<string>('SMTP_USER'),
-          pass: this.configService.get<string>('SMTP_PASS'),
+          user: smtpUser,
+          pass: smtpPass,
         },
+        tls: {
+          rejectUnauthorized: false,
+        },
+        family: 4,
       });
 
-      const mailOptions = {
-        from:
-          this.configService.get<string>('SMTP_FROM') || 'noreply@example.com',
+      const info = await transporter.sendMail({
+        from: fromAddress,
         to: email,
         subject: 'Your OTP Code',
         text: message,
-      };
+      });
 
-      await transporter.sendMail(mailOptions);
-      return true;
+      return !info.accepted || info.accepted.length > 0;
     } catch (error) {
+      const accepted = (error as { accepted?: unknown[] })?.accepted;
+      if (Array.isArray(accepted) && accepted.length > 0) {
+        return true;
+      }
       console.error('Email sending error:', error);
       return false;
     }
