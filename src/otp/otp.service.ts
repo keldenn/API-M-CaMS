@@ -243,7 +243,6 @@ export class OtpService {
         tls: {
           rejectUnauthorized: false,
         },
-        family: 4,
       });
 
       const info = await transporter.sendMail({
