@@ -22,10 +22,11 @@ export class NdiBillingService {
 
   async submitBill(dto: NdiBillSubmitDto): Promise<NdiBillSubmitResponseDto> {
     const threadId = dto.thread_id.trim();
+    const cdCode = dto.cd_code.trim();
 
     const row = this.ndiBillingRepository.create({
       cid: dto.cid.trim(),
-      cd_code: dto.cd_code.trim(),
+      cd_code: cdCode,
       thread_id: threadId,
       order_no: dto.order_no.trim(),
       service_type: SERVICE_TYPE,
@@ -43,9 +44,10 @@ export class NdiBillingService {
     };
 
     try {
-      response.ndi = await this.ndiVerifierService.submitBillSubmitted([
-        threadId,
-      ]);
+      response.ndi = await this.ndiVerifierService.submitBillSubmitted(
+        [threadId],
+        cdCode,
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unknown NDI error';

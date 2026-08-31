@@ -18,8 +18,6 @@ import {
   schemaForAttribute,
 } from '../constants/ndi-schemas';
 
-const BILL_FLOW_ID = 'mcmas_registration';
-
 @Injectable()
 export class NdiVerifierService {
   private readonly logger = new Logger(NdiVerifierService.name);
@@ -179,10 +177,11 @@ export class NdiVerifierService {
 
   async submitBillSubmitted(
     threadIds: string[],
+    flowId: string,
   ): Promise<NdiBillSubmittedApiResponseDto> {
     try {
       this.logger.log(
-        `Submitting bill to NDI for threadIds: ${threadIds.join(', ')}`,
+        `Submitting bill to NDI for flowId=${flowId} threadIds: ${threadIds.join(', ')}`,
       );
 
       const accessToken =
@@ -198,7 +197,7 @@ export class NdiVerifierService {
       }
 
       const payload = {
-        flowId: BILL_FLOW_ID,
+        flowId,
         threadIds,
         purpose: 'ekyc',
       };
