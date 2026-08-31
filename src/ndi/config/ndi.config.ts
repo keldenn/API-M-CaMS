@@ -22,10 +22,15 @@ export default registerAs('ndi', () => ({
     process.env.NDI_NATS_SEED ||
     'SUAESNRWPPICEM4PF5MWARPD46HZ3KJIVK7LBEUIFE6A4FUANTNI7HG6VE',
 
-  // Default Schema Configuration
+  // Credential Schema Configuration
+  // Schema 1: Foundational ID credential (ID Number, Full Name, Gender, Date of Birth)
   defaultSchema:
     process.env.NDI_SCHEMA_NAME ||
     'https://schema.ngotag.com/schemas/fb675203-b317-4675-a657-be7f5d1d57fb',
+  // Schema 2: Address / census credential (Dzongkhag, Gewog, Village)
+  addressSchema:
+    process.env.NDI_ADDRESS_SCHEMA_NAME ||
+    'https://schema.ngotag.com/schemas/cf51e93c-d8e7-450b-860e-e4d20d4fd549',
 
   // Backend API Key
   backendApiKey: process.env.BACKEND_API_KEY,

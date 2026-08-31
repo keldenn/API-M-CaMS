@@ -2,8 +2,21 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { NdiAuthService } from './ndi-auth.service';
-import { NdiProofRequestDto, NdiProofResponseDto } from '../dto/ndi-auth.dto';
+import {
+  NdiProofPurpose,
+  NdiProofRequestDto,
+  NdiProofResponseDto,
+} from '../dto/ndi-auth.dto';
 import { NdiBillSubmittedApiResponseDto } from '../dto/ndi-bill-submit.dto';
+import {
+  ADDRESS_SCHEMA_FALLBACK,
+  DEFAULT_PROOF_NAME,
+  IDENTITY_SCHEMA_FALLBACK,
+  SUPPORTED_ATTRIBUTES,
+  buildProofAttributes,
+  canonicalizeAttributeName,
+  schemaForAttribute,
+} from '../constants/ndi-schemas';
 
 const BILL_FLOW_ID = 'mcmas_registration';
 
@@ -66,34 +79,91 @@ export class NdiVerifierService {
     }
   }
 
-  async createFoundationalIdProofRequest(): Promise<NdiProofResponseDto> {
-    const proofRequest: NdiProofRequestDto = {
-      proofName: 'Verify Foundational ID',
-      proofAttributes: [
-        {
-          name: 'ID Number',
-          restrictions: [
-            {
-              schema_name: this.configService.get<string>(
-                'ndi.defaultSchema',
-                'https://schema.ngotag.com/schemas/fb675203-b317-4675-a657-be7f5d1d57fb',
-              ),
-            },
-          ],
-        },
-      ],
-    };
+  /**
+   * Attributes requested when the caller does not supply its own list.
+   * Foundational ID attributes come from schema 1, address attributes from schema 2.
+   */
+  getDefaultProofAttributes(): Array<{ name: string; schemaName: string }> {
+    return buildProofAttributes(
+      this.getIdentitySchema(),
+      this.getAddressSchema(),
+    );
+  }
 
-    return this.createProofRequest(proofRequest);
+  private getIdentitySchema(): string {
+    return this.configService.get<string>(
+      'ndi.defaultSchema',
+      IDENTITY_SCHEMA_FALLBACK,
+    );
+  }
+
+  private getAddressSchema(): string {
+    return this.configService.get<string>(
+      'ndi.addressSchema',
+      ADDRESS_SCHEMA_FALLBACK,
+    );
+  }
+
+  /**
+   * Fills in the schema URL for attributes sent without one, using the
+   * configured identity/address schemas. An explicit schemaName wins.
+   */
+  private resolveAttributeSchemas(
+    attributes: Array<{ name: string; schemaName?: string }>,
+  ): Array<{ name: string; schemaName: string }> {
+    const identitySchema = this.getIdentitySchema();
+    const addressSchema = this.getAddressSchema();
+
+    return attributes.map((attr) => {
+      const canonicalName = canonicalizeAttributeName(attr.name);
+
+      if (attr.schemaName) {
+        return { name: canonicalName ?? attr.name, schemaName: attr.schemaName };
+      }
+
+      if (!canonicalName) {
+        throw new HttpException(
+          `Unknown NDI attribute "${attr.name}". Supported attributes: ${SUPPORTED_ATTRIBUTES.join(', ')}. Provide schemaName explicitly to request a custom attribute.`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const schemaName = schemaForAttribute(
+        canonicalName,
+        identitySchema,
+        addressSchema,
+      );
+
+      if (!schemaName) {
+        throw new HttpException(
+          `No schema configured for NDI attribute "${canonicalName}".`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return { name: canonicalName, schemaName };
+    });
+  }
+
+  async createFoundationalIdProofRequest(
+    proofName = DEFAULT_PROOF_NAME,
+    purpose: NdiProofPurpose = NdiProofPurpose.EKYC,
+  ): Promise<NdiProofResponseDto> {
+    return this.createCustomProofRequest(
+      proofName,
+      this.getDefaultProofAttributes(),
+      purpose,
+    );
   }
 
   async createCustomProofRequest(
     proofName: string,
-    attributes: Array<{ name: string; schemaName: string }>,
+    attributes: Array<{ name: string; schemaName?: string }>,
+    purpose: NdiProofPurpose = NdiProofPurpose.EKYC,
   ): Promise<NdiProofResponseDto> {
     const proofRequest: NdiProofRequestDto = {
       proofName,
-      proofAttributes: attributes.map((attr) => ({
+      proofAttributes: this.resolveAttributeSchemas(attributes).map((attr) => ({
         name: attr.name,
         restrictions: [
           {
@@ -101,6 +171,7 @@ export class NdiVerifierService {
           },
         ],
       })),
+      purpose,
     };
 
     return this.createProofRequest(proofRequest);

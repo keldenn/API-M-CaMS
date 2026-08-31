@@ -8,7 +8,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { NdiAuthService } from '../services/ndi-auth.service';
 import { NdiVerifierService } from '../services/ndi-verifier.service';
 import { NatsService } from '../services/nats.service';
@@ -207,7 +207,10 @@ export class NdiController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Initiate complete NDI verification workflow (Public)',
+    description:
+      'Send an empty body to request the default 7 attributes (Foundational ID + address schemas), or supply proofName/attributes to override.',
   })
+  @ApiBody({ type: NdiVerificationInitiateDto, required: false })
   @ApiResponse({
     status: 201,
     description: 'Verification workflow initiated successfully',
@@ -220,6 +223,7 @@ export class NdiController {
     return this.ndiIntegrationService.initiateVerificationWorkflow(
       body.proofName,
       body.attributes,
+      body.purpose,
     );
   }
 

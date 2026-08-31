@@ -1,8 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NdiAuthService } from './ndi-auth.service';
 import { NdiVerifierService } from './ndi-verifier.service';
+import { DEFAULT_PROOF_NAME } from '../constants/ndi-schemas';
 import { NatsService } from './nats.service';
-import { NdiProofResponseDto, NdiProofResultDto } from '../dto/ndi-auth.dto';
+import {
+  NdiProofPurpose,
+  NdiProofResponseDto,
+  NdiProofResultDto,
+} from '../dto/ndi-auth.dto';
 
 @Injectable()
 export class NdiIntegrationService {
@@ -25,8 +30,9 @@ export class NdiIntegrationService {
    * 4. Return deep link for user interaction
    */
   async initiateVerificationWorkflow(
-    proofName: string = 'Verify Foundational ID',
-    attributes?: Array<{ name: string; schemaName: string }>,
+    proofName?: string,
+    attributes?: Array<{ name: string; schemaName?: string }>,
+    purpose: NdiProofPurpose = NdiProofPurpose.EKYC,
   ): Promise<{
     proofRequest: NdiProofResponseDto;
     deepLinkUrl: string;
@@ -44,12 +50,16 @@ export class NdiIntegrationService {
 
       if (attributes && attributes.length > 0) {
         proofRequest = await this.ndiVerifierService.createCustomProofRequest(
-          proofName,
+          proofName ?? DEFAULT_PROOF_NAME,
           attributes,
+          purpose,
         );
       } else {
         proofRequest =
-          await this.ndiVerifierService.createFoundationalIdProofRequest();
+          await this.ndiVerifierService.createFoundationalIdProofRequest(
+            proofName,
+            purpose,
+          );
       }
 
       // Step 3: Subscribe to NATS for proof results (if NATS is available)
