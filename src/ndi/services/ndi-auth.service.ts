@@ -85,23 +85,19 @@ export class NdiAuthService {
   }
 
   /**
-   * Token for POST /ndi/bill/submit only (demo bill-submitted API).
-   * Uses NDI_AUTH_URL_STAGING; all other NDI flows keep prod NDI_AUTH_URL.
+   * Token for POST /ndi/bill/submit only.
+   * Uses NDI_AUTH_URL_STAGING when set, otherwise the production NDI_AUTH_URL.
    */
   async getValidAccessTokenForStaging(): Promise<string> {
-    const stagingAuthUrl = this.configService.get<string>('ndi.authUrlStaging');
-    if (!stagingAuthUrl) {
-      throw new HttpException(
-        'NDI_AUTH_URL_STAGING is not configured',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    const authUrl =
+      this.configService.get<string>('ndi.authUrlStaging') ||
+      this.configService.get<string>('ndi.authUrl');
 
     const { clientId, clientSecret } = this.getClientCredentials();
     const authResponse = await this.authenticate(
       clientId,
       clientSecret,
-      stagingAuthUrl,
+      authUrl,
     );
     return authResponse.access_token;
   }
