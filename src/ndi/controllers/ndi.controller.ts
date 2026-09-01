@@ -6,6 +6,7 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
@@ -219,6 +220,12 @@ export class NdiController {
   async initiateVerificationWorkflow(
     @Body() body: NdiVerificationInitiateDto = {},
   ): Promise<NdiVerificationResponseDto> {
+    // TEMPORARY: NDI verification disabled — remove this throw block to restore
+    throw new HttpException(
+      'Registration is currently unavailable',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+
     this.logger.log('Initiating complete verification workflow');
     return this.ndiIntegrationService.initiateVerificationWorkflow(
       body.proofName,
