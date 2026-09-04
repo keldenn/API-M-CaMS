@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NdiBilling } from '../../entities/ndi-billing.entity';
@@ -18,6 +19,7 @@ export class NdiBillingService {
     @InjectRepository(NdiBilling, 'cms22')
     private readonly ndiBillingRepository: Repository<NdiBilling>,
     private readonly ndiVerifierService: NdiVerifierService,
+    private readonly configService: ConfigService,
   ) {}
 
   async submitBill(dto: NdiBillSubmitDto): Promise<NdiBillSubmitResponseDto> {
@@ -43,20 +45,51 @@ export class NdiBillingService {
       id: saved.id,
     };
 
-    try {
-      response.ndi = await this.ndiVerifierService.submitBillSubmitted(
-        [threadId],
-        cdCode,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown NDI error';
-      this.logger.error(
-        `Local billing saved (id=${saved.id}) but NDI bill-submitted failed: ${message}`,
-      );
-      response.ndi_error = message;
+    const maxRetries = this.configService.get<number>('ndi.maxRetries', 3);
+    const retryDelay = this.configService.get<number>('ndi.retryDelay', 1000);
+    const attempts = Math.max(1, maxRetries);
+    let lastErrorMessage = 'Unknown NDI error';
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        response.ndi = await this.ndiVerifierService.submitBillSubmitted(
+          [threadId],
+          cdCode,
+        );
+        if (attempt > 1) {
+          this.logger.log(
+            `NDI bill-submitted succeeded on retry attempt=${attempt}/${attempts} billingId=${saved.id}`,
+          );
+        }
+        return response;
+      } catch (error) {
+        lastErrorMessage =
+          error instanceof Error ? error.message : 'Unknown NDI error';
+        const isLastAttempt = attempt === attempts;
+
+        this.logger.error(
+          `NDI bill-submitted failed attempt=${attempt}/${attempts} billingId=${saved.id} order_no=${saved.order_no} thread_id=${threadId} cd_code=${cdCode}: ${lastErrorMessage}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+
+        if (!isLastAttempt) {
+          const delayMs = retryDelay * attempt;
+          this.logger.warn(
+            `Retrying NDI bill-submitted in ${delayMs}ms (attempt ${attempt + 1}/${attempts}) billingId=${saved.id}`,
+          );
+          await this.sleep(delayMs);
+        }
+      }
     }
 
+    this.logger.error(
+      `Local billing saved (id=${saved.id}) but NDI bill-submitted failed after ${attempts} attempts: ${lastErrorMessage}`,
+    );
+    response.ndi_error = lastErrorMessage;
     return response;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

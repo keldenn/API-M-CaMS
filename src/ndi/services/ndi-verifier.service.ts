@@ -221,7 +221,15 @@ export class NdiVerifierService {
         HttpStatus.BAD_REQUEST,
       );
     } catch (error) {
-      this.logger.error('NDI bill-submitted request failed:', error.message);
+      const status = error.response?.status;
+      const responseBody = error.response?.data
+        ? JSON.stringify(error.response.data)
+        : undefined;
+
+      this.logger.error(
+        `NDI bill-submitted request failed flowId=${flowId} status=${status ?? 'n/a'} message=${error.message}${responseBody ? ` body=${responseBody}` : ''}`,
+        error.stack,
+      );
 
       if (error.response) {
         throw new HttpException(
