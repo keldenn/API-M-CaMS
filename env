@@ -1,0 +1,64 @@
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=password
+DB_DATABASE=cms22
+
+
+DB_HOST=192.168.10.100
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=MkmCsop@289
+DB_DATABASE=cms2
+
+DB_HOST1=localhost
+DB_PORT1=3306
+DB_DATABASE1=officesite
+DB_USERNAME1=root
+DB_PASSWORD1=password
+
+DB_SYNC=false
+DB_LOGGING=false
+DB_TIMEZONE=+06:00
+DB_INSECURE_AUTH=true
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_ACCESS_EXPIRES_IN=10m
+JWT_REFRESH_EXPIRES_IN=2d
+VERIFICATION_API_KEY=RSEB@2020
+THROTTLE_TTL=60
+THROTTLE_LIMIT=10
+LOGIN_ATTEMPTS_LIMIT=5
+PORT=3000
+NODE_ENV=development
+
+
+
+# SMS Configuration
+SMS_URL=https://cms.rsebl.org.bt/api/v1/rseb_sms_gateway.php
+
+# Email Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=itrsebl19@gmail.com
+SMTP_PASS=xzwnpzlmmbrwbchp
+SMTP_FROM="Royal Securities Exchange of Bhutan(RSEB) <itrsebl19@gmail.com>"
+
+
+# NDI (National Digital Identity) Configuration
+NDI_NATS_SEED=SUAESNRWPPICEM4PF5MWARPD46HZ3KJIVK7LBEUIFE6A4FUANTNI7HG6VE
+NDI_AUTH_URL=https://core.bhutanndi.com/authentication/authenticate
+NDI_PROOF_REQUEST_URL=https://app.rsebl.org.bt/verifier/v1/proof-request
+BACKEND_API_KEY=sfqpb68j201ad69cv8rn7ff267p1fn1hf4h63mehne653mnigor
+#NDI_NATS_URL=nats://app.rsebl.org.bt:4222
+NDI_NATS_URL=nats://192.168.20.20:4222
+NDI_CLIENT_ID=680nfodbgp7jifbk4qv7nr1phm
+NDI_CLIENT_SECRET=sfqpb68j201ad69cv8rn7ff267p1fn1hf4h63mehne653mnigor
+NDI_SCHEMA_NAME=https://schema.ngotag.com/schemas/fb675203-b317-4675-a657-be7f5d1d57fb
+NDI_ADDRESS_SCHEMA_NAME=https://schema.ngotag.com/schemas/cf51e93c-d8e7-450b-860e-e4d20d4fd549
+
+
+
+#fcm
+FIREBASE_PROJECT_ID=fcm-mcams
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@fcm-mcams.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDKwkFJUocs4g2O\n1rTkmtKJP91mA70PjAhhbjxJnbcrd9RxWhGLn6pm47whBzPlVIihD/BTkKLCb86a\nQgQuyL4UH74XIAQsYZRZjQxCcAjQR6ieSPe2s+hrOsU6iI1YpRpAVFRtN4iHl7K6\nmJQJEYv8iiEPKGKHwbxp09ouimIQsYwQP73B07dfA324s1TceuzxhVvZRaZTUkP1\n3QX2Vj9AI2exuXcbw0cb0cEX9cFFgTiao07Lo+v7BmlqussxjA/BZcHriZ0LbUxe\nAtrvGPLDeaHwq1YBVrwW0vNpdb4OMJI1/O0D8OJ5Vwvpr0SXGtKWfLGNAn/6ZzUF\nsw1WpenLAgMBAAECggEAIBRmAfTVwEsvu/bKfhTk1KRPIjHbOtd8B/ZKAZe7gFwg\nN6L5fa7QZiEIBe2+zzz1tQ3xhzcuGTdZZ9ykDsbiFAsFp2EAaAk0UIrZcrWJH3MH\nAawnzTdfwX917xHl0y2kHqN5DCKqLlHZDF7RpTGqhVVRb7WDCVmkttW3AoAQjfVQ\n9zapOdxKLVWpJfTLoUEl7t2vMN3D90ztqqnT0D6/p66sG7HYS5IBrcFZuP1ztZoZ\ni7mztnGOKRBCnUdmzhD+yPrYWid6QHOJPLEvHJad+QT4fmsEav12q3kMgONGD05U\nUhWeZc5hzVLlZQxati8TrzqFJWqZVdYNWos/NA+SoQKBgQD625HKtzOH3e2QxKHm\n3EgjRjcm0OtPKaZUf0ZnNPTtlx9kManr+wa4jhhSTDqiGQ6cb9M0mtuPsbj0EJ7f\nh+TX8/viGXylBMExycL39aT/AUlT0b076KjCX/H8FDKMVfCIGvcz1s9t/K/kn6Ms\nlbJInUkN8AWySeGpeXZ7XLQOkQKBgQDO6kawcUUOwFFwVTh5Il+X+EuQZJeMcKFe\njIyiTw5qdkWRbZgye/RyULeYEUAz6TltPOENhYI0RmD+zpELAZNY1jyWJgv4pSGh\njFBiOh68lnDz8nPe8QHggiy8uRXkKEd0lDKFnX7jRgxinkR9RDJ/f2490nhabj8z\nl0hNwMuYmwKBgQCqMTNtc/ObFz8o+67YANVUUTvzssQiliBJrXvnY29UjjX29RbS\niiGaLpVjqGITParDCb8iLnoNuEbCF1CiWQEyXk6irCX7kwk7rSYAsoC5nXbRTjfz\noDp2fT+ghVdyDJA+1wSl//QFK+1tz7yV8A3f5A3/TbufpS5bm5N9yHxEcQKBgQCG\nkGuqge+UWVRdRr70YHtkvNB/tjus1O7NK4Cmad2JNSOnIWwSoPRnh8Duf4GOgQWc\n2jPOdF4qGv8nlzVSwBKQertqNpIggVvu0O7SAtRMd1Y8ABiFC53Z4S6xCXmIKP3X\nfi2hIb0Ml1ikpiMKiFiC/F+4ivFEdmBZ7+/QySpfMwKBgQCFQdLPjvZsAz+7oDHg\n8MEgS9YLTgwBlvuPJIZqtibxQTQoLTOAVOvDXA4VY1t6hl5Wu5/A9Oy6aVI9CKVA\nIH7nIEfCQOOfyVFA2B5d/i+1tCAHxM66deBZiOq9IigcF2Qg5IYSi2w6+i3SGaTi\n6pbop14qy7mDELYyO0s+XasOkA==\n-----END PRIVATE KEY-----\n"

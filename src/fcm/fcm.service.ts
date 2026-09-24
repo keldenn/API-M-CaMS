@@ -371,6 +371,7 @@ export class FcmService implements OnModuleInit {
     cdCode: string,
     trade: {
       symbolId: number;
+      symbol?: string;
       side: 'B' | 'S';
       volume: number;
       price: number;
@@ -378,17 +379,77 @@ export class FcmService implements OnModuleInit {
     },
   ): Promise<void> {
     const sideText = trade.side === 'B' ? 'BUY' : 'SELL';
+    const symbol = trade.symbol || `symbol ${trade.symbolId}`;
     const payload: NotificationPayload = {
       title: 'Bond Order Matched',
-      body: `Your ${sideText} bond order for symbol ${trade.symbolId} matched ${trade.volume.toLocaleString()} unit(s) at Nu.${trade.price}.`,
+      body: `Your ${sideText} bond order for ${symbol} matched ${trade.volume.toLocaleString()} unit(s) at Nu.${trade.price}.`,
       data: {
         type: 'bond_trade_matched',
+        symbol,
         symbol_id: trade.symbolId.toString(),
         side: trade.side,
         volume: trade.volume.toString(),
         price: trade.price.toString(),
         cd_code: cdCode,
         counterparty_cd_code: trade.counterpartyCdCode,
+        timestamp: new Date().toISOString(),
+      },
+      androidChannelId: 'order_updates',
+    };
+
+    await this.sendToCdCode(cdCode, payload);
+  }
+
+  /**
+   * Bond order lifecycle (place / update / cancel). Separate from equity
+   * `order_change` so the app can show these under Bonds in the inbox.
+   */
+  async sendBondOrderChangeNotification(
+    cdCode: string,
+    orderData: {
+      action: 'created' | 'updated' | 'deleted';
+      symbolId: number;
+      symbol?: string;
+      side?: 'B' | 'S';
+      price?: string | number;
+      volume?: string | number;
+      orderId?: string | number;
+    },
+  ): Promise<void> {
+    const symbol = orderData.symbol || `symbol ${orderData.symbolId}`;
+    const sideText =
+      orderData.side === 'B' ? 'buy' : orderData.side === 'S' ? 'sell' : '';
+    let title = 'Bond Order Update';
+    let body = `Your bond order for ${symbol} has been updated`;
+
+    switch (orderData.action) {
+      case 'created':
+        title = 'Bond Order Placed';
+        body = `Your ${sideText} bond order for ${symbol} has been placed successfully`;
+        break;
+      case 'updated':
+        title = 'Bond Order Updated';
+        body = `Your bond order for ${symbol} has been updated`;
+        break;
+      case 'deleted':
+        title = 'Bond Order Cancelled';
+        body = `Your ${sideText} bond order for ${symbol} has been cancelled`;
+        break;
+    }
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      data: {
+        type: 'bond_order_change',
+        action: orderData.action,
+        symbol,
+        symbol_id: orderData.symbolId.toString(),
+        side: orderData.side ?? '',
+        volume: orderData.volume != null ? String(orderData.volume) : '',
+        price: orderData.price != null ? String(orderData.price) : '',
+        order_id: orderData.orderId != null ? String(orderData.orderId) : '',
+        cd_code: cdCode,
         timestamp: new Date().toISOString(),
       },
       androidChannelId: 'order_updates',

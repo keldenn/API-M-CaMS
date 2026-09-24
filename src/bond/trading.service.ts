@@ -529,6 +529,14 @@ export class BondTradingService {
     const match = orderId
       ? await this.bondMatchingService.tryMatchOrder(orderId)
       : undefined;
+    this.notifyBondOrderChange(dto.cd_code, {
+      action: 'created',
+      orderId,
+      symbolId: dto.symbol_id,
+      side: dto.side,
+      price: dto.price,
+      volume: dto.order_size,
+    });
     this.notifyBondMatchParticipants(
       dto.cd_code,
       dto.symbol_id,
@@ -734,6 +742,14 @@ export class BondTradingService {
     const match = orderId
       ? await this.bondMatchingService.tryMatchOrder(orderId)
       : undefined;
+    this.notifyBondOrderChange(dto.cd_code, {
+      action: 'created',
+      orderId,
+      symbolId: dto.symbol_id,
+      side: dto.side,
+      price: dto.price,
+      volume: dto.order_size,
+    });
     this.notifyBondMatchParticipants(
       dto.cd_code,
       dto.symbol_id,
@@ -779,12 +795,7 @@ export class BondTradingService {
         price: Number(row.price ?? 0),
         side: String(row.side ?? ''),
         commis_amt: Number(row.commis_amt ?? 0),
-        order_date: row.order_date
-          ? new Date(String(row.order_date))
-              .toISOString()
-              .replace('T', ' ')
-              .substring(0, 19)
-          : '',
+        order_date: this.formatDbDateTime(row.order_date),
         acc_intrt: Number(row.acc_intrt ?? 0),
         dirty_price: Number(row.dirty_price ?? 0),
         ytm: Number(row.ytm ?? 0),
@@ -1107,6 +1118,14 @@ export class BondTradingService {
     }
 
     const match = await this.bondMatchingService.tryMatchOrder(dto.order_id);
+    this.notifyBondOrderChange(cdCode, {
+      action: 'updated',
+      orderId: dto.order_id,
+      symbolId: dto.symbol_id,
+      side: dto.side,
+      price: dto.price,
+      volume: dto.order_size,
+    });
     this.notifyBondMatchParticipants(cdCode, dto.symbol_id, dto.side, match);
 
     return {
@@ -1249,6 +1268,15 @@ export class BondTradingService {
     } finally {
       await queryRunner.release();
     }
+
+    this.notifyBondOrderChange(cdCode, {
+      action: 'deleted',
+      orderId: dto.order_id,
+      symbolId: dto.symbol_id,
+      side: dto.side,
+      price: Number(order.price ?? 0),
+      volume: orderSize,
+    });
 
     return { message: 'Order cancelled successfully.' };
   }
@@ -1595,6 +1623,47 @@ export class BondTradingService {
     ]);
   }
 
+  private notifyBondOrderChange(
+    cdCode: string,
+    payload: {
+      action: 'created' | 'updated' | 'deleted';
+      orderId?: number;
+      symbolId: number;
+      side: 'B' | 'S';
+      price?: number;
+      volume?: number;
+    },
+  ): void {
+    void this.resolveBondSymbolLabel(payload.symbolId)
+      .then((symbol) =>
+        this.fcmService.sendBondOrderChangeNotification(cdCode, {
+          action: payload.action,
+          orderId: payload.orderId,
+          symbolId: payload.symbolId,
+          symbol,
+          side: payload.side,
+          price: payload.price,
+          volume: payload.volume,
+        }),
+      )
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Bond ${payload.action} notification failed for ${cdCode}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+  }
+
+  private async resolveBondSymbolLabel(symbolId: number): Promise<string> {
+    const rows = await this.symbolRepository.query(
+      `SELECT symbol FROM symbol WHERE symbol_id = ? LIMIT 1`,
+      [symbolId],
+    );
+    const symbol = rows[0]?.symbol;
+    return symbol ? String(symbol) : `symbol ${symbolId}`;
+  }
+
   private notifyBondMatchParticipants(
     incomingCdCode: string,
     symbolId: number,
@@ -1606,36 +1675,49 @@ export class BondTradingService {
     }
 
     const counterpartySide: 'B' | 'S' = incomingSide === 'B' ? 'S' : 'B';
-    const notifications = match.fills.flatMap((fill) => [
-      this.fcmService.sendBondTradeMatchedNotification(incomingCdCode, {
-        symbolId,
-        side: incomingSide,
-        volume: fill.volume,
-        price: fill.price,
-        counterpartyCdCode: fill.counterparty_cd_code,
-      }),
-      this.fcmService.sendBondTradeMatchedNotification(
-        fill.counterparty_cd_code,
-        {
-          symbolId,
-          side: counterpartySide,
-          volume: fill.volume,
-          price: fill.price,
-          counterpartyCdCode: incomingCdCode,
-        },
-      ),
-    ]);
+    void this.resolveBondSymbolLabel(symbolId)
+      .then((symbol) => {
+        const notifications = match.fills.flatMap((fill) => [
+          this.fcmService.sendBondTradeMatchedNotification(incomingCdCode, {
+            symbolId,
+            symbol,
+            side: incomingSide,
+            volume: fill.volume,
+            price: fill.price,
+            counterpartyCdCode: fill.counterparty_cd_code,
+          }),
+          this.fcmService.sendBondTradeMatchedNotification(
+            fill.counterparty_cd_code,
+            {
+              symbolId,
+              symbol,
+              side: counterpartySide,
+              volume: fill.volume,
+              price: fill.price,
+              counterpartyCdCode: incomingCdCode,
+            },
+          ),
+        ]);
 
-    void Promise.allSettled(notifications).then((results) => {
-      const failures = results.filter(
-        (result) => result.status === 'rejected',
-      ).length;
-      if (failures > 0) {
+        return Promise.allSettled(notifications);
+      })
+      .then((results) => {
+        const failures = results.filter(
+          (result) => result.status === 'rejected',
+        ).length;
+        if (failures > 0) {
+          this.logger.warn(
+            `${failures} bond trade notification(s) failed for symbol ${symbolId}`,
+          );
+        }
+      })
+      .catch((error: unknown) => {
         this.logger.warn(
-          `${failures} bond trade notification(s) failed for symbol ${symbolId}`,
+          `Bond match notification failed for symbol ${symbolId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
-      }
-    });
+      });
   }
 
   private hasAtMostTwoDecimals(value: number): boolean {
@@ -1733,14 +1815,54 @@ export class BondTradingService {
     return this.formatDate(a) === this.formatDate(b);
   }
 
+  /**
+   * Bond DATETIME values are Bhutan wall-clock (DB timezone +06:00).
+   * Do not use toISOString() — that shifts the clock to UTC and the app
+   * then shows 6 hours behind.
+   */
   private formatDbDateTime(value: unknown): string {
-    if (!value) {
+    if (value == null || value === '') {
       return '';
     }
-    return new Date(String(value))
-      .toISOString()
-      .replace('T', ' ')
-      .substring(0, 19);
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return this.formatThimphuDateTime(value);
+    }
+
+    const raw = String(value).trim();
+    if (!raw) {
+      return '';
+    }
+
+    const naive = raw.match(
+      /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/,
+    );
+    const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw.replace(/\.\d+/, ''));
+    if (naive && !hasZone) {
+      return `${naive[1]} ${naive[2]}`;
+    }
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      return naive ? `${naive[1]} ${naive[2]}` : '';
+    }
+    return this.formatThimphuDateTime(parsed);
+  }
+
+  private formatThimphuDateTime(date: Date): string {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Thimphu',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const pick = (type: string) =>
+      parts.find((part) => part.type === type)?.value ?? '';
+    return `${pick('year')}-${pick('month')}-${pick('day')} ${pick('hour')}:${pick('minute')}:${pick('second')}`;
   }
 
   private roundTo(value: number, scale: number): number {
