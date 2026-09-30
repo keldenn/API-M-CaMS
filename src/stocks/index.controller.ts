@@ -16,7 +16,7 @@ export class IndexController {
   @Get('index')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Get index data',
+    summary: 'Get index data.',
     description:
       'Retrieves current index data for all sectors. Requires JWT authentication.',
   })
