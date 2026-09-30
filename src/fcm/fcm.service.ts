@@ -277,6 +277,69 @@ export class FcmService implements OnModuleInit {
   }
 
   /**
+   * Push one title and body to every registered device.
+   * FCM multicast accepts at most 500 tokens per request.
+   */
+  async sendBroadcastNotification(
+    title: string,
+    body: string,
+  ): Promise<{
+    success: boolean;
+    targeted: number;
+    successCount: number;
+    failureCount: number;
+    message: string;
+  }> {
+    const tokens = await this.fcmTokenService.getAllTokenStrings();
+    if (tokens.length === 0) {
+      this.logger.warn('Broadcast skipped: no FCM tokens registered');
+      return {
+        success: false,
+        targeted: 0,
+        successCount: 0,
+        failureCount: 0,
+        message: 'No registered devices',
+      };
+    }
+
+    const payload: NotificationPayload = {
+      title,
+      body,
+      data: {
+        type: 'admin_broadcast',
+        timestamp: new Date().toISOString(),
+      },
+      androidChannelId: 'order_updates',
+    };
+
+    let successCount = 0;
+    let failureCount = 0;
+    const chunkSize = 500;
+
+    for (let index = 0; index < tokens.length; index += chunkSize) {
+      const chunk = tokens.slice(index, index + chunkSize);
+      const result = await this.sendToMultipleDevices(chunk, payload);
+      successCount += result.successCount;
+      failureCount += result.failureCount;
+    }
+
+    this.logger.log(
+      `Broadcast complete. Targeted: ${tokens.length}, Success: ${successCount}, Failure: ${failureCount}`,
+    );
+
+    return {
+      success: successCount > 0,
+      targeted: tokens.length,
+      successCount,
+      failureCount,
+      message:
+        successCount > 0
+          ? `Sent to ${successCount} of ${tokens.length} device(s)`
+          : 'Broadcast failed for every device',
+    };
+  }
+
+  /**
    * Send order change notification
    */
   async sendOrderChangeNotification(

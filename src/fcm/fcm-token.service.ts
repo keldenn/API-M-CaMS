@@ -149,6 +149,22 @@ export class FcmTokenService {
   }
 
   /**
+   * Every registered device token. Used for an admin broadcast.
+   */
+  async getAllTokenStrings(): Promise<string[]> {
+    const tokens = await this.fcmTokenRepository.find({
+      select: ['fcm_token'],
+    });
+    return [
+      ...new Set(
+        tokens
+          .map((token) => token.fcm_token?.trim())
+          .filter((token): token is string => Boolean(token)),
+      ),
+    ];
+  }
+
+  /**
    * Get all active FCM token strings for a cd_code (for sending notifications)
    */
   async getActiveTokenStringsByCdCode(cdCode: string): Promise<string[]> {
