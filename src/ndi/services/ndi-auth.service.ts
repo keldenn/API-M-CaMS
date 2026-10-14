@@ -9,6 +9,7 @@ export class NdiAuthService {
   private readonly authUrl: string;
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
+  private inflightAuth: Promise<string> | null = null;
 
   constructor(private configService: ConfigService) {
     this.authUrl = this.configService.get<string>(
@@ -79,9 +80,39 @@ export class NdiAuthService {
   }
 
   async getValidAccessToken(): Promise<string> {
+    if (this.isTokenUsable() && this.accessToken) {
+      return this.accessToken;
+    }
+
+    if (!this.inflightAuth) {
+      this.inflightAuth = this.requestAccessToken().finally(() => {
+        this.inflightAuth = null;
+      });
+    }
+
+    return this.inflightAuth;
+  }
+
+  private async requestAccessToken(): Promise<string> {
     const { clientId, clientSecret } = this.getClientCredentials();
     const authResponse = await this.authenticate(clientId, clientSecret);
     return authResponse.access_token;
+  }
+
+  /**
+   * Reuse the cached NDI token until it is inside the refresh window.
+   * A token that expires sooner than that window is not reused.
+   */
+  private isTokenUsable(): boolean {
+    if (!this.isTokenValid() || !this.tokenExpiry) {
+      return false;
+    }
+
+    const refreshBeforeMs = this.configService.get<number>(
+      'ndi.tokenRefreshThreshold',
+      300000,
+    );
+    return this.tokenExpiry.getTime() - Date.now() > refreshBeforeMs;
   }
 
   /**

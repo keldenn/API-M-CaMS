@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { NdiAuthService } from './ndi-auth.service';
 import { NdiVerifierService } from './ndi-verifier.service';
 import { DEFAULT_PROOF_NAME } from '../constants/ndi-schemas';
 import { NatsService } from './nats.service';
@@ -17,7 +16,6 @@ export class NdiIntegrationService {
   private readonly verificationResults = new Map<string, NdiProofResultDto>();
 
   constructor(
-    private readonly ndiAuthService: NdiAuthService,
     private readonly ndiVerifierService: NdiVerifierService,
     private readonly natsService: NatsService,
   ) {}
@@ -42,10 +40,7 @@ export class NdiIntegrationService {
     try {
       this.logger.log('Initiating NDI verification workflow...');
 
-      // Step 1: Ensure we have a valid access token
-      await this.ndiAuthService.getValidAccessToken();
-
-      // Step 2: Create proof request
+      // Proof creation logs in to NDI once and reuses that token.
       let proofRequest: NdiProofResponseDto;
 
       if (attributes && attributes.length > 0) {
@@ -62,7 +57,7 @@ export class NdiIntegrationService {
           );
       }
 
-      // Step 3: Subscribe to NATS for proof results (if NATS is available)
+      // Subscribe to NATS for proof results when NATS is available.
       try {
         await this.subscribeToProofResult(
           proofRequest.data.proofRequestThreadId,
